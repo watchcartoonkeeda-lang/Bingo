@@ -88,7 +88,11 @@ export function GameOverDialog({
           text: shareText,
           url: window.location.href,
         })
-        .catch((error) => console.error("Error sharing:", error));
+        .catch((error) => {
+           if (error.name !== 'AbortError') {
+             console.error("Error sharing:", error)
+           }
+        });
     } else {
       // Fallback for browsers that don't support navigator.share
       navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
@@ -164,10 +168,12 @@ export function GameOverDialog({
 
 
         <AlertDialogFooter className="mt-4 sm:flex-row gap-2">
-          <Button onClick={handleShare} size="lg" variant="secondary" className="w-full">
-            <Share2 className="mr-2" />
-            Share Win
-          </Button>
+           {isPlayerWinner && (
+            <Button onClick={handleShare} size="lg" variant="secondary" className="w-full">
+              <Share2 className="mr-2" />
+              Share Win
+            </Button>
+          )}
           <Button onClick={onPlayAgain} size="lg" className="w-full">
             Play Again
           </Button>
