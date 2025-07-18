@@ -269,31 +269,31 @@ export default function GamePage() {
   };
 
   const handleStartGame = async () => {
-      if (!gameState || localPlayerId !== gameState.hostId) return;
+    if (!gameState || localPlayerId !== gameState.hostId) return;
 
-      const readyPlayers = Object.values(gameState.players).filter(p => p.isBoardReady);
-      if (readyPlayers.length < 2 && !gameState.isBotGame) {
-          toast({ variant: 'destructive', title: "Not enough players are ready!"});
-          return;
-      }
-      
-      const gameRef = doc(firestore, "games", gameId);
-      const readyPlayerIds = readyPlayers.map(p => p.id);
-      const startingPlayerId = readyPlayerIds[Math.floor(Math.random() * readyPlayerIds.length)];
+    const readyPlayers = Object.values(gameState.players).filter(p => p.isBoardReady);
+    if (readyPlayers.length < 2 && !gameState.isBotGame) {
+        toast({ variant: 'destructive', title: "Not enough players are ready!", description: "At least two players must confirm their boards."});
+        return;
+    }
+    
+    const gameRef = doc(firestore, "games", gameId);
+    const readyPlayerIds = readyPlayers.map(p => p.id);
+    const startingPlayerId = readyPlayerIds[Math.floor(Math.random() * readyPlayerIds.length)];
 
-      // Construct a new players object containing only the ready players
-      const inGamePlayers: {[key: string]: Player} = {};
-      for (const player of readyPlayers) {
-          inGamePlayers[player.id] = player;
-      }
-      
-      await updateDoc(gameRef, {
-        status: 'playing',
-        players: inGamePlayers, // Only include ready players in the game
-        currentTurn: startingPlayerId,
-        calledNumbers: []
-      });
-  }
+    // Construct a new players object containing only the ready players
+    const inGamePlayers: {[key: string]: Player} = {};
+    for (const player of readyPlayers) {
+        inGamePlayers[player.id] = player;
+    }
+    
+    await updateDoc(gameRef, {
+      status: 'playing',
+      players: inGamePlayers, // Only include ready players in the game
+      currentTurn: startingPlayerId,
+      calledNumbers: []
+    });
+}
 
 
   const handleCallNumber = async (num: number, callerId: string) => {
@@ -412,7 +412,7 @@ export default function GamePage() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        { gameState.isBotGame ? "Starting game..." : (isHost ? "Waiting for players. You can start when at least two are ready." : "Waiting for the host to start the game...")}
+                        { gameState.isBotGame ? "Starting game..." : (isHost ? "Waiting for other players to ready up. You can start when at least two are ready." : "Waiting for the host to start the game...")}
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                     {isHost && !gameState.isBotGame && (

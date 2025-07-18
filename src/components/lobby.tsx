@@ -58,7 +58,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
       return "Waiting for another player...";
     }
     if (readyPlayersCount < 2 && !isBotGame) {
-      return "Waiting for players to be ready";
+      return `Waiting for players to be ready (${readyPlayersCount}/${players.length})`;
     }
     return "Start Game";
   };
@@ -110,10 +110,10 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
                 }
               </li>
             ))}
-            {players.length < 2 && !isBotGame && (
+            {players.length < maxPlayers && !isBotGame && (
               <li className="flex items-center justify-center gap-2 text-muted-foreground p-3 rounded-lg border-2 border-dashed border-gray-700">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Waiting for another player...
+                Waiting for {maxPlayers - players.length} more player(s)...
               </li>
             )}
           </ul>
