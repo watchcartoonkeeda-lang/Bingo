@@ -6,9 +6,6 @@ import {
   isSameDay,
   isSameWeek,
   isSameMonth,
-  startOfDay,
-  startOfWeek,
-  startOfMonth,
 } from "date-fns";
 
 type PlayerProfile = {
@@ -68,33 +65,44 @@ export const recordGameResult = async (playerId: string, result: GameResultType)
         const now = new Date();
         const lastWinDate = (playerData.lastWinTimestamp as Timestamp)?.toDate();
 
-        let dailyWins = playerData.dailyWins || 0;
-        let weeklyWins = playerData.weeklyWins || 0;
-        let monthlyWins = playerData.monthlyWins || 0;
-        
-        // Reset streaks if the new win is in a different period
-        if (lastWinDate) {
-            if (!isSameDay(now, lastWinDate)) dailyWins = 0;
-            if (!isSameWeek(now, lastWinDate)) weeklyWins = 0;
-            if (!isSameMonth(now, lastWinDate)) monthlyWins = 0;
-        }
-
         const updates: { [key: string]: any } = {};
 
         if (result === 'win') {
             updates.score = increment(1);
-            updates.dailyWins = dailyWins + 1;
-            updates.weeklyWins = weeklyWins + 1;
-            updates.monthlyWins = monthlyWins + 1;
             updates.lastWinTimestamp = serverTimestamp();
-        } else if (result === 'loss') {
-            // Deduct 2 points, but don't go below 0
-            const newScore = Math.max(0, (playerData.score || 0) - 2);
-            updates.score = newScore;
-        }
-        // No score change for a draw
+            
+            // Handle streak updates
+            let dailyWins = playerData.dailyWins || 0;
+            let weeklyWins = playerData.weeklyWins || 0;
+            let monthlyWins = playerData.monthlyWins || 0;
 
-        await updateDoc(playerDocRef, updates);
+            if (lastWinDate && isSameDay(now, lastWinDate)) {
+                updates.dailyWins = dailyWins + 1;
+            } else {
+                updates.dailyWins = 1; // Reset or start new daily streak
+            }
+
+            if (lastWinDate && isSameWeek(now, lastWinDate)) {
+                updates.weeklyWins = weeklyWins + 1;
+            } else {
+                updates.weeklyWins = 1; // Reset or start new weekly streak
+            }
+            
+            if (lastWinDate && isSameMonth(now, lastWinDate)) {
+                updates.monthlyWins = monthlyWins + 1;
+            } else {
+                updates.monthlyWins = 1; // Reset or start new monthly streak
+            }
+        } else {
+            // On a loss or draw, reset all win streaks. Score is unaffected.
+            updates.dailyWins = 0;
+            updates.weeklyWins = 0;
+            updates.monthlyWins = 0;
+        }
+        
+        if (Object.keys(updates).length > 0) {
+            await updateDoc(playerDocRef, updates);
+        }
 
     } catch (error) {
         console.error("Error recording game result:", error);

@@ -20,9 +20,7 @@ interface GameOverDialogProps {
   isOpen: boolean;
   winnerName: string | null;
   isPlayerWinner: boolean;
-  onPlayAgain: () => void;
   onGoToLobby: () => void;
-  opponentName: string;
 }
 
 export function GameOverDialog({
@@ -63,19 +61,13 @@ export function GameOverDialog({
     }
   };
 
-  const title =
-    winnerName === "DRAW"
-      ? "🤝 It's a Draw! 🤝"
-      : isPlayerWinner
-      ? "🎉 You Won! 🎉"
-      : `${winnerName} Won!`;
+  const title = !winnerName ? "🤝 It's a Draw! 🤝" : (isPlayerWinner ? "🎉 You Won! 🎉" : `${winnerName} Won!`);
 
-  const description =
-    winnerName === "DRAW"
-      ? "An intense match! No winner this time. Your score is unaffected."
-      : isPlayerWinner
-      ? "Congratulations! Your score has increased by 1 point."
-      : "Better luck next time! Your score has been reduced by 2 points.";
+  const description = !winnerName
+    ? "An intense match! No winner this time. Your all-time score is unaffected."
+    : isPlayerWinner
+    ? "Congratulations! Your all-time score has increased by 1 point. Your winning streaks have been updated!"
+    : "Better luck next time! Your all-time score is unaffected, but your win streaks have been reset.";
 
   return (
     <AlertDialog open={isOpen}>

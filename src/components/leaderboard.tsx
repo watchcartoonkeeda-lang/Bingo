@@ -135,7 +135,7 @@ export function Leaderboard() {
     <Card>
       <CardHeader>
         <CardTitle>Top Players</CardTitle>
-        <CardDescription>See who is leading the BingoBoardBlitz charts!</CardDescription>
+        <CardDescription>The all-time leaders of BingoBoardBlitz!</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (

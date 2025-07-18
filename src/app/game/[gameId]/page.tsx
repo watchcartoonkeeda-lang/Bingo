@@ -103,12 +103,14 @@ export default function GamePage() {
       }
 
       if (gameData.status === 'finished' && gameData.winner && !gameResultRecorded.current && localPlayerId) {
-         const isWinner = gameData.winner === localPlayerId;
-         const isDraw = gameData.winner === 'DRAW';
-         
-         const result = isWinner ? 'win' : (isDraw ? 'draw' : 'loss');
-         recordGameResult(localPlayerId, result);
-         gameResultRecorded.current = true;
+        if (gameData.winner === localPlayerId) {
+          await recordGameResult(localPlayerId, 'win');
+        } else if (gameData.winner !== 'DRAW') {
+          await recordGameResult(localPlayerId, 'loss');
+        } else {
+          await recordGameResult(localPlayerId, 'draw');
+        }
+        gameResultRecorded.current = true;
       }
 
       setGameState(gameData);
@@ -433,16 +435,12 @@ export default function GamePage() {
       
       case "finished":
         const winnerPlayer = gameState.players[gameState.winner || ''];
-        const opponentName = winnerPlayer?.name || (otherPlayers.length > 0 ? otherPlayers[0].name : 'Opponent');
-
         return (
             <GameOverDialog
                 isOpen={true}
-                winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? 'DRAW' : winnerPlayer?.name || 'Opponent')}
+                winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? null : winnerPlayer?.name || 'Opponent')}
                 isPlayerWinner={gameState.winner === localPlayerId}
-                onPlayAgain={handleResetGame}
                 onGoToLobby={() => router.push('/')}
-                opponentName={opponentName}
             />
         );
 
