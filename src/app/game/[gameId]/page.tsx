@@ -17,6 +17,7 @@ import { Loader2 } from "lucide-react";
 import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { playBotTurn } from "@/ai/flows/bot-player";
+import { GameInstructions } from "@/components/game-instructions";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -242,10 +243,23 @@ export default function GamePage() {
 
     const gameRef = doc(firestore, "games", gameId);
     
+    // Set board ready state first
     await updateDoc(gameRef, {
       [`players.${localPlayerId}.board`]: playerBoard,
       [`players.${localPlayerId}.isBoardReady`]: true,
     });
+    
+    // If it's a bot game, confirming your board starts the game
+    if (gameState.isBotGame) {
+        const playerIds = Object.keys(gameState.players);
+        const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+
+        await updateDoc(gameRef, {
+            status: 'playing',
+            currentTurn: startingPlayerId,
+            calledNumbers: []
+        });
+    }
   };
 
   const handleStartGame = async () => {
@@ -364,7 +378,7 @@ export default function GamePage() {
   
   const renderContent = () => {
     // If it's a bot game, we might skip the 'waiting' state entirely for the UI
-    const status = gameState.isBotGame && gameState.status === 'waiting' ? 'setup' : gameState.status;
+    const status = gameState.isBotGame && gameState.status === 'waiting' && localPlayerId && gameState.players[localPlayerId] ? 'setup' : gameState.status;
 
 
     switch (status) {
@@ -395,7 +409,8 @@ export default function GamePage() {
             );
         }
         return (
-          <div className="flex flex-col items-center w-full">
+          <div className="flex flex-col items-center w-full gap-8">
+            <GameInstructions />
             <BoardSetup
               board={playerBoard}
               onPlaceNumber={handlePlaceNumber}
