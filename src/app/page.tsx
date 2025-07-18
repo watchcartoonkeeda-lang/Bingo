@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { firestore, auth, signInWithGoogle, onAuthStateChanged, type User as FirebaseUser } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { updateProfile } from "firebase/auth";
 
 type GameMode = 'friends' | 'bot';
 type BotDifficulty = 'normal' | 'hard';
@@ -88,7 +89,6 @@ export default function Home() {
 
   const handleCreateGameRequest = (mode: GameMode, difficulty?: BotDifficulty) => {
     gameInfoToCreate.current = { mode, difficulty };
-    // Use existing display name if available, otherwise prompt
     if (user?.displayName) {
         setPlayerName(user.displayName);
         createNewGame();
@@ -98,38 +98,60 @@ export default function Home() {
   }
 
   const createNewGame = async () => {
-    if (!playerName.trim() || !gameInfoToCreate.current || !user) {
+    if (!gameInfoToCreate.current || !user) {
         toast({
             variant: "destructive",
             title: "Could not create game.",
-            description: "A player name and authenticated user are required.",
+            description: "An authenticated user is required.",
         });
         return;
     }
-    
+
+    if (!playerName.trim() && !user.displayName) {
+      setShowNameDialog(true);
+      return;
+    }
+
     setIsGameLoading(true);
     setShowNameDialog(false);
+
+    let finalPlayerName = playerName.trim();
+    
+    // Update profile if name is new or different
+    if (finalPlayerName && user.displayName !== finalPlayerName) {
+        try {
+            await updateProfile(user, { displayName: finalPlayerName });
+        } catch (error) {
+            console.error("Error updating user profile:", error);
+            toast({
+                variant: "destructive",
+                title: "Profile Update Failed",
+                description: "Could not save your new player name.",
+            });
+            setIsGameLoading(false);
+            return;
+        }
+    } else if (!finalPlayerName && user.displayName) {
+        finalPlayerName = user.displayName;
+    }
     
     const { mode, difficulty } = gameInfoToCreate.current;
     const isBotGame = mode === 'bot';
 
     try {
-      const localPlayerId = user.uid;
-      sessionStorage.setItem("playerId", localPlayerId);
-
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
       const hostPlayer = {
-        id: localPlayerId,
-        name: playerName,
+        id: user.uid,
+        name: finalPlayerName,
         board: [],
         isBoardReady: false,
         isBot: false,
       };
       
       const players = {
-        [localPlayerId]: hostPlayer,
+        [user.uid]: hostPlayer,
       };
 
       if(isBotGame) {
@@ -153,7 +175,7 @@ export default function Home() {
         maxPlayers: isBotGame ? 2 : 4,
         isBotGame: isBotGame,
         botDifficulty: difficulty || null,
-        hostId: localPlayerId,
+        hostId: user.uid,
       });
       
       router.push(`/game/${gameId}`);
@@ -162,7 +184,7 @@ export default function Home() {
       toast({
         variant: "destructive",
         title: "Error Creating Game",
-        description: "Could not create a new game. This is likely a Firestore Security Rules issue. Please check the instructions in the README file.",
+        description: "Could not create a new game. Please check your Firestore Security Rules in the README.",
       });
       setAuthStatus("error"); 
       setAuthError({ code: 'firestore/permission-denied' });
@@ -283,7 +305,7 @@ export default function Home() {
           <AlertDialogHeader>
             <AlertDialogTitle>Enter Your Name</AlertDialogTitle>
             <AlertDialogDescription>
-              Please enter your name to start the game. This will be visible to other players.
+              This name will be saved to your profile and will be visible to other players.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2 py-2">

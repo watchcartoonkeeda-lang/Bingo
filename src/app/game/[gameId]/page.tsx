@@ -67,7 +67,6 @@ export default function GamePage() {
         setUser(currentUser);
         setLocalPlayerId(currentUser.uid);
       } else {
-        // If not logged in, redirect to home to sign in
         toast({ variant: "destructive", title: "Not Authenticated", description: "Please sign in to join a game." });
         router.push("/");
       }
@@ -80,7 +79,7 @@ export default function GamePage() {
 
   // Effect to subscribe to game state changes
   useEffect(() => {
-    if (!gameId || !localPlayerId) return;
+    if (!gameId || !user) return;
 
     const gameRef = doc(firestore, "games", gameId);
     
@@ -92,6 +91,15 @@ export default function GamePage() {
       }
       
       const gameData = docSnap.data() as GameState;
+      
+      // Auto-join the user if they are authenticated but not yet in the player list
+      if (user.uid && !gameData.players[user.uid] && gameData.status === 'waiting') {
+        const playerCount = Object.keys(gameData.players).length;
+        if (playerCount < gameData.maxPlayers) {
+            handleJoinGame();
+        }
+      }
+
       setGameState(gameData);
       setIsLoading(false);
 
@@ -102,7 +110,8 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameId, router, toast, localPlayerId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, router, toast, user]);
 
   // Effect to check if all players are ready and start the game
   useEffect(() => {
@@ -116,7 +125,6 @@ export default function GamePage() {
                 [`players.${botPlayer.id}.board`]: botBoard,
                 [`players.${botPlayer.id}.isBoardReady`]: true,
             });
-            // Don't proceed to start the game yet, wait for the next snapshot
             return; 
         }
 
@@ -161,7 +169,7 @@ export default function GamePage() {
     const botPlayer = Object.values(gameState.players).find(p => p.isBot);
     if (botPlayer && gameState.currentTurn === botPlayer.id) {
         const handleBotTurn = async () => {
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Bot "thinks"
+            await new Promise(resolve => setTimeout(resolve, 1500)); 
             
             const botMove = getBotMove(
                 botPlayer.board as number[],
@@ -337,7 +345,6 @@ export default function GamePage() {
     }
   }, [localPlayer, handleConfirmBoard, toast]);
 
-  // Loading state must be checked AFTER all hooks are called.
   if (isLoading || !gameState || !localPlayerId || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
