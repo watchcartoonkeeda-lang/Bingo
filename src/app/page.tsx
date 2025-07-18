@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
@@ -21,6 +21,7 @@ export default function Home() {
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
+      // First, create the document with the initial structure.
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
@@ -28,9 +29,14 @@ export default function Home() {
         calledNumbers: [],
         currentTurn: null,
         winner: null,
+      });
+
+      // Then, update it with the server timestamps. This is the correct pattern.
+      await updateDoc(gameRef, {
         createdAt: serverTimestamp(),
         lastActivity: serverTimestamp(),
       });
+      
       router.push(`/game/${gameId}`);
     } catch (error) {
       console.error("Error creating new game:", error);
