@@ -2,6 +2,7 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,6 +16,7 @@ const firebaseConfig = {
 
 // A robust way to initialize Firebase in a Next.js environment
 let app: FirebaseApp;
+let auth: Auth;
 let firestore: Firestore;
 
 if (getApps().length === 0) {
@@ -23,6 +25,17 @@ if (getApps().length === 0) {
   app = getApp();
 }
 
+auth = getAuth(app);
 firestore = getFirestore(app);
 
-export { app, firestore };
+// Sign in anonymously to satisfy security rules
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    signInAnonymously(auth).catch((error) => {
+      console.error("Anonymous sign-in failed:", error);
+    });
+  }
+});
+
+
+export { app, auth, firestore };
