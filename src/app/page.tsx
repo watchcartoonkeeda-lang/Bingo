@@ -21,17 +21,15 @@ export default function Home() {
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
-      // First, create the document with the initial structure.
+      // Create the document with the absolute minimum required data.
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
-        players: {},
-        calledNumbers: [],
-        currentTurn: null,
-        winner: null,
+        players: {}, // Firestore handles empty maps correctly.
+        // Let other fields be added as needed.
       });
 
-      // Then, update it with the server timestamps. This is the correct pattern.
+      // Then, update it with the server timestamps.
       await updateDoc(gameRef, {
         createdAt: serverTimestamp(),
         lastActivity: serverTimestamp(),
