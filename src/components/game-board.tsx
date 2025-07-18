@@ -6,7 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bot, User, Loader2, PartyPopper } from "lucide-react";
+import { Loader2, PartyPopper } from "lucide-react";
+import { PlayerClock } from "./player-clock";
+import { TurnTimer } from "./turn-timer";
+import type { User } from "firebase/auth";
+
+interface Player {
+  id: string;
+  name: string;
+  board: number[];
+  isBoardReady: boolean;
+  isBot: boolean;
+}
 
 interface GameBoardProps {
   playerBoard: (number | null)[];
@@ -15,35 +26,63 @@ interface GameBoardProps {
   onBingoCall: () => void;
   currentTurnId: string | null;
   localPlayerId: string;
-  otherPlayerName: string;
+  allPlayers: { [key: string]: Player };
   allNumbers: number[];
   completedLines: number;
   linesToWin: number;
+  playerTimes: { [key: string]: number };
+  turnStartTime: any | null;
+  turnTimeLimit: number;
 }
 
-export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers, completedLines, linesToWin }: GameBoardProps) {
+export function GameBoard({ 
+  playerBoard, 
+  calledNumbers, 
+  onCallNumber, 
+  onBingoCall, 
+  currentTurnId, 
+  localPlayerId, 
+  allPlayers, 
+  allNumbers, 
+  completedLines, 
+  linesToWin,
+  playerTimes,
+  turnStartTime,
+  turnTimeLimit,
+}: GameBoardProps) {
   const isPlayerTurn = currentTurnId === localPlayerId;
+  const currentTurnPlayer = allPlayers[currentTurnId || ''];
   
-  const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}'s turn...`;
+  const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${currentTurnPlayer?.name || 'opponent'}'s turn...`;
 
   const canCallBingo = completedLines >= linesToWin;
 
+  const otherPlayerIds = Object.keys(allPlayers).filter(id => id !== localPlayerId);
+
   return (
-    <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-      <div className="md:col-span-2">
+    <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="lg:col-span-2">
         <Card className="shadow-lg animate-fade-in">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Your Board</CardTitle>
-              <CardDescription>
-                {turnText}
-              </CardDescription>
+          <CardHeader>
+              <div className="flex justify-between items-start gap-4">
+                {Object.values(allPlayers).map(player => (
+                    <PlayerClock 
+                        key={player.id}
+                        playerName={player.name}
+                        isLocalPlayer={player.id === localPlayerId}
+                        isTurn={player.id === currentTurnId}
+                        timeRemaining={playerTimes[player.id]}
+                        turnStartTime={player.id === currentTurnId ? turnStartTime : null}
+                    />
+                ))}
             </div>
-            <div className={cn("flex items-center gap-2 p-2 rounded-lg transition-all", isPlayerTurn ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground')}>
-              {isPlayerTurn ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-              <span className="font-semibold">{isPlayerTurn ? "Your Turn" : `${otherPlayerName}'s Turn`}</span>
-               {!isPlayerTurn && <Loader2 className="h-5 w-5 animate-spin"/>}
-            </div>
+            {currentTurnId && (
+                 <TurnTimer
+                    key={currentTurnId} // Force re-render on turn change
+                    turnStartTime={turnStartTime}
+                    timeLimit={turnTimeLimit}
+                />
+            )}
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-5 gap-2 aspect-square">
@@ -78,7 +117,7 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Number Bank</CardTitle>
-            <CardDescription>Click a number to call it on your turn.</CardDescription>
+            <CardDescription>{turnText}</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-64">
@@ -120,7 +159,7 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Called Numbers</CardTitle>
-            <CardDescription>Total: {calledNumbers.length} / 25</CardDescription>
+            <CardDescription>Total: {calledNumbers.length} / {allNumbers.length}</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-40">

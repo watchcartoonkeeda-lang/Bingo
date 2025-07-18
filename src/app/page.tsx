@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { firestore, auth, signInWithGoogle, onAuthStateChanged, signOutUser, type User as FirebaseUser } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
@@ -37,6 +37,8 @@ import { updateUserProfile } from "@/lib/player-stats";
 type GameMode = 'friends' | 'bot';
 type BotDifficulty = 'normal' | 'hard';
 type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
+
+const TOTAL_GAME_TIME = 300; // 5 minutes
 
 export default function Home() {
   const [isGameLoading, setIsGameLoading] = useState(false);
@@ -81,8 +83,6 @@ export default function Home() {
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
       if (error.code === 'auth/popup-closed-by-user') {
-          // The user cancelled the sign-in. onAuthStateChanged will ensure
-          // the state remains "unauthenticated". No state change needed here.
           return;
       }
       toast({
@@ -174,6 +174,10 @@ export default function Home() {
         [user.uid]: hostPlayer,
       };
 
+      const playerTimes = {
+          [user.uid]: TOTAL_GAME_TIME,
+      };
+
       if(isBotGame) {
         const botId = 'bot_player_1';
         players[botId] = {
@@ -183,12 +187,14 @@ export default function Home() {
            isBoardReady: false, 
            isBot: true,
         };
+        playerTimes[botId] = TOTAL_GAME_TIME;
       }
 
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
         players: players,
+        playerTimes: playerTimes,
         calledNumbers: [],
         currentTurn: null,
         winner: null,
@@ -196,6 +202,7 @@ export default function Home() {
         isBotGame: isBotGame,
         botDifficulty: difficulty || null,
         hostId: user.uid,
+        turnStartTime: null,
       });
       
       router.push(`/game/${gameId}`);

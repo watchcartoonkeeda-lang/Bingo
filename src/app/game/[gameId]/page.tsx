@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, getDoc, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, getDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { BoardSetup } from "@/components/board-setup";
@@ -42,11 +42,15 @@ type GameState = {
   isBotGame: boolean;
   botDifficulty: BotDifficulty | null;
   hostId: string | null;
+  playerTimes: { [key: string]: number }; // Total time in seconds for each player
+  turnStartTime: any | null; // Firestore server timestamp
 };
 
 const INITIAL_BOARD = Array(25).fill(null);
-const ALL_NUMBERS = Array.from({ length: 25 }, (_, i) => i + 1);
+const ALL_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
 const LINES_TO_WIN = 5;
+const TOTAL_GAME_TIME = 300; // 5 minutes in seconds
+const TURN_TIME_LIMIT = 15; // 15 seconds
 
 export default function GamePage() {
   const params = useParams();
@@ -62,6 +66,7 @@ export default function GamePage() {
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
   const gameResultRecorded = useRef(false);
+  const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -103,11 +108,14 @@ export default function GamePage() {
       }
 
       if (gameData.status === 'finished' && gameData.winner && !gameResultRecorded.current && localPlayerId) {
-        if (gameData.winner === localPlayerId) {
+        const didIWin = gameData.winner === localPlayerId;
+        const didILose = !didIWin && gameData.winner !== 'DRAW' && Object.keys(gameData.players).includes(localPlayerId);
+
+        if (didIWin) {
           await recordGameResult(localPlayerId, 'win');
-        } else if (gameData.winner !== 'DRAW') {
+        } else if (didILose) {
           await recordGameResult(localPlayerId, 'loss');
-        } else {
+        } else if (gameData.winner === 'DRAW') {
           await recordGameResult(localPlayerId, 'draw');
         }
         gameResultRecorded.current = true;
@@ -150,7 +158,8 @@ export default function GamePage() {
             updateDoc(gameRef, {
                 status: 'playing',
                 currentTurn: startingPlayerId,
-                calledNumbers: []
+                calledNumbers: [],
+                turnStartTime: serverTimestamp(),
             });
         }
     }
@@ -175,37 +184,100 @@ export default function GamePage() {
     }
   }, [gameState, localPlayer, toast]);
 
-  // Effect for Bot's turn
+
+  // Effect for turn timers (both bot and human)
   useEffect(() => {
-    if (!gameState || gameState.status !== 'playing' || !gameState.isBotGame || !localPlayer) return;
-  
+    if (!gameState || gameState.status !== 'playing' || !gameState.currentTurn) {
+        if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+        return;
+    }
+
+    const { currentTurn, turnStartTime, isBotGame } = gameState;
     const botPlayer = Object.values(gameState.players).find(p => p.isBot);
-    if (botPlayer && gameState.currentTurn === botPlayer.id) {
-        const handleBotTurn = async () => {
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
-            
+
+    // Bot's Turn
+    if (isBotGame && botPlayer && currentTurn === botPlayer.id) {
+        if (turnTimerRef.current) clearTimeout(turnTimerRef.current); // Clear any existing timers
+        turnTimerRef.current = setTimeout(() => {
             const botMove = getBotMove(
                 botPlayer.board as number[],
-                localPlayer.board as number[],
+                localPlayer!.board as number[],
                 gameState.calledNumbers,
                 ALL_NUMBERS,
                 gameState.botDifficulty || 'normal'
             );
-  
+
             if (botMove.shouldCallBingo) {
-                const gameRef = doc(firestore, "games", gameId);
-                await updateDoc(gameRef, {
-                    status: 'finished',
-                    winner: botPlayer.id,
-                });
+                updateDoc(doc(firestore, "games", gameId), { status: 'finished', winner: botPlayer.id });
             } else if (botMove.chosenNumber) {
-                await handleCallNumber(botMove.chosenNumber, botPlayer.id);
+                handleCallNumber(botMove.chosenNumber, botPlayer.id);
             }
-        };
-        handleBotTurn();
+        }, 1500); // Bot thinks for 1.5 seconds
+        return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState?.status, gameState?.currentTurn, gameId, localPlayer]);
+
+    // Human Player's Turn
+    if (currentTurn === localPlayerId && turnStartTime) {
+        const handleTimeout = () => {
+            if (!gameState) return; // Game state might have changed
+            toast({
+                variant: 'destructive',
+                title: "Time's up!",
+                description: 'A random number was called for you.',
+            });
+            const availableNumbers = ALL_NUMBERS.filter(n => !gameState.calledNumbers.includes(n));
+            const randomMove = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+            handleCallNumber(randomMove, localPlayerId);
+        };
+        
+        const startTime = (turnStartTime.toDate() as Date).getTime();
+        const elapsed = (Date.now() - startTime) / 1000;
+        const remaining = TURN_TIME_LIMIT - elapsed;
+
+        if (remaining <= 0) {
+            handleTimeout();
+        } else {
+            if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+            turnTimerRef.current = setTimeout(handleTimeout, remaining * 1000);
+        }
+    }
+
+    return () => {
+      if (turnTimerRef.current) {
+        clearTimeout(turnTimerRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.status, gameState?.currentTurn, gameId, localPlayerId]);
+
+  // Effect for chess-style clock
+  useEffect(() => {
+    if (gameState?.status !== 'playing') return;
+
+    const interval = setInterval(async () => {
+        if (!gameState || !gameState.currentTurn || !gameState.turnStartTime) return;
+        
+        const gameRef = doc(firestore, "games", gameId);
+        const currentPlayerId = gameState.currentTurn;
+        
+        const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - startTime) / 1000);
+
+        const newTime = Math.max(0, (gameState.playerTimes[currentPlayerId] || TOTAL_GAME_TIME) - elapsedSeconds);
+
+        if (newTime <= 0) {
+            const winnerId = Object.keys(gameState.players).find(id => id !== currentPlayerId);
+            await updateDoc(gameRef, {
+                status: 'finished',
+                winner: winnerId,
+                [`playerTimes.${currentPlayerId}`]: 0,
+            });
+        }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState, gameId]);
 
 
   const handleJoinGame = async () => {
@@ -228,7 +300,10 @@ export default function GamePage() {
               isBot: false,
           };
           
-          await updateDoc(gameRef, { [`players.${localPlayerId}`]: newPlayer });
+          await updateDoc(gameRef, { 
+              [`players.${localPlayerId}`]: newPlayer,
+              [`playerTimes.${localPlayerId}`]: TOTAL_GAME_TIME,
+           });
 
       } catch (error) {
           console.error("Error joining game:", error);
@@ -303,7 +378,13 @@ export default function GamePage() {
 
     const newCalledNumbers = [...gameState.calledNumbers, num];
     
-    if (newCalledNumbers.length === 25) {
+    // Update player time
+    const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
+    const endTime = Date.now();
+    const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
+    const remainingTime = Math.max(0, gameState.playerTimes[callerId] - elapsedSeconds);
+
+    if (newCalledNumbers.length === ALL_NUMBERS.length) {
       await updateDoc(gameRef, {
         status: 'finished',
         winner: 'DRAW',
@@ -313,6 +394,8 @@ export default function GamePage() {
       await updateDoc(gameRef, {
         calledNumbers: arrayUnion(num),
         currentTurn: nextPlayerId,
+        [`playerTimes.${callerId}`]: remainingTime,
+        turnStartTime: serverTimestamp(),
       });
     }
   };
@@ -336,14 +419,6 @@ export default function GamePage() {
             description: `You need ${LINES_TO_WIN} completed lines to win. Keep playing!`,
         });
     }
-  };
-
-  const handleResetGame = async () => {
-    if (!gameState || localPlayerId !== gameState.hostId) return;
-    
-    const gameRef = doc(firestore, "games", gameId);
-    
-    router.push('/');
   };
 
   const handleTimerEnd = useCallback(() => {
@@ -416,7 +491,6 @@ export default function GamePage() {
            )
         }
         const completedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
-        const currentTurnPlayer = gameState.players[gameState.currentTurn!];
 
         return (
           <GameBoard
@@ -426,10 +500,13 @@ export default function GamePage() {
             onBingoCall={handleBingoCall}
             currentTurnId={gameState.currentTurn}
             localPlayerId={localPlayerId}
-            otherPlayerName={currentTurnPlayer?.name || 'Opponent'}
+            allPlayers={gameState.players}
             allNumbers={ALL_NUMBERS}
             completedLines={completedLines}
             linesToWin={LINES_TO_WIN}
+            playerTimes={gameState.playerTimes}
+            turnStartTime={gameState.turnStartTime}
+            turnTimeLimit={TURN_TIME_LIMIT}
           />
         );
       
@@ -451,7 +528,7 @@ export default function GamePage() {
 
   return (
     <main className="flex flex-col items-center min-h-screen p-4 bg-background dark:bg-gray-900">
-       <div className="w-full max-w-4xl mx-auto">
+       <div className="w-full max-w-6xl mx-auto">
         <header className="flex items-center justify-between mb-6 w-full">
           <AppLogo />
            {gameState.status === 'playing' && localPlayer && localPlayer.board.length > 0 && (
