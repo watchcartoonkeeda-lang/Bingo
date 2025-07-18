@@ -81,6 +81,14 @@ export function GameOverDialog({
 
   const handleShare = () => {
     const shareText = `I just won a game of BingoBoardBlitz with a winning streak of ${winningStreak}! Can you beat me?`;
+    const fallbackCopy = () => {
+      navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
+      toast({
+        title: "Link Copied!",
+        description: "Your victory message has been copied to the clipboard.",
+      });
+    }
+
     if (navigator.share) {
       navigator
         .share({
@@ -89,17 +97,14 @@ export function GameOverDialog({
           url: window.location.href,
         })
         .catch((error) => {
+           // Fallback to clipboard if share fails or is aborted
            if (error.name !== 'AbortError') {
-             console.error("Error sharing:", error)
+             console.error("Error sharing:", error);
            }
+           fallbackCopy();
         });
     } else {
-      // Fallback for browsers that don't support navigator.share
-      navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
-      toast({
-        title: "Link Copied!",
-        description: "Your victory message has been copied to the clipboard.",
-      });
+      fallbackCopy();
     }
   };
 
