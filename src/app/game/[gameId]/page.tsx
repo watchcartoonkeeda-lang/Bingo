@@ -2,7 +2,7 @@
 // src/app/game/[gameId]/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc, getDoc, arrayUnion } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
@@ -13,7 +13,7 @@ import { AppLogo } from "@/components/icons";
 import { checkWin, countWinningLines } from "@/lib/game-logic";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, PartyPopper } from "lucide-react";
 import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 
@@ -48,6 +48,7 @@ export default function GamePage() {
   const [playerBoard, setPlayerBoard] = useState<(number | null)[]>(INITIAL_BOARD);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const prevCompletedLines = useRef(0);
 
   useEffect(() => {
     let playerId = sessionStorage.getItem("playerId");
@@ -207,7 +208,7 @@ export default function GamePage() {
     if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
 
     const player = gameState.players[localPlayerId];
-    const playerWon = checkWin(player.board, gameState.calledNumbers, LINES_TO_WIN);
+    const playerWon = checkWin(player.board, gameState.calledNumbers);
     const gameRef = doc(firestore, "games", gameId);
 
     if (playerWon) {
@@ -259,8 +260,24 @@ export default function GamePage() {
   }
   
   const localPlayer = gameState.players[localPlayerId];
-  const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
   const otherPlayer = Object.values(gameState.players).find(p => p.id !== localPlayerId);
+
+  // Effect to check for bingo readiness and notify the player
+  useEffect(() => {
+    if (gameState.status === 'playing' && localPlayer?.board.length > 0) {
+      const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
+      if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
+        toast({
+          title: "🎉 You can call Bingo now! 🎉",
+          description: `You've completed ${currentCompletedLines} lines. Hit the Bingo button to win!`,
+          duration: 8000,
+          className: "bg-accent border-primary text-accent-foreground",
+        });
+      }
+      prevCompletedLines.current = currentCompletedLines;
+    }
+  }, [gameState.calledNumbers, gameState.status, localPlayer, toast]);
+
 
   const renderContent = () => {
     switch (gameState.status) {
@@ -278,6 +295,7 @@ export default function GamePage() {
           return <Lobby gameId={gameId} players={Object.values(gameState.players)} />;
 
       case "setup":
+        const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
         if (localPlayer && localPlayer.isBoardReady) {
             return (
                 <div className="text-center">
@@ -371,4 +389,3 @@ export default function GamePage() {
     </main>
   );
 }
-
