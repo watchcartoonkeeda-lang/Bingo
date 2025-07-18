@@ -81,7 +81,8 @@ export default function Home() {
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
       if (error.code === 'auth/popup-closed-by-user') {
-          setAuthStatus("unauthenticated");
+          // The user cancelled the sign-in. onAuthStateChanged will ensure
+          // the state remains "unauthenticated". No state change needed here.
           return;
       }
       toast({
@@ -346,7 +347,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-4 bg-background dark:bg-gray-900">
-       {renderContent()}
+      {renderContent()}
 
       <AlertDialog open={showNameDialog} onOpenChange={setShowNameDialog}>
         <AlertDialogContent>
@@ -377,5 +378,3 @@ export default function Home() {
     </main>
   );
 }
-
-    
