@@ -1,5 +1,5 @@
 // src/lib/firebase.ts
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -9,11 +9,15 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
+// Initialize Firebase
 let app;
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
 }
 
 const firestore = getFirestore(app);
