@@ -84,28 +84,6 @@ export default function GamePage() {
       }
       
       const gameData = docSnap.data() as GameState;
-
-      // If it's a bot game and only the host is in, add the bot and go to setup.
-      if (gameData.isBotGame && gameData.status === 'waiting' && gameData.players[localPlayerId] && Object.keys(gameData.players).length === 1) {
-        if(gameData.hostId === localPlayerId){ 
-            const botId = 'bot_player_1';
-            if (!gameData.players[botId]) {
-              const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
-              const botPlayer: Player = {
-                  id: botId,
-                  name: 'BingoBot',
-                  board: botBoard,
-                  isBoardReady: true, // Bot is always ready
-                  isBot: true,
-              };
-              await updateDoc(gameRef, { 
-                [`players.${botId}`]: botPlayer,
-                status: 'setup' 
-              });
-            }
-        }
-      }
-
       setGameState(gameData);
       setIsLoading(false);
 
@@ -121,18 +99,31 @@ export default function GamePage() {
   // Effect to check if all players are ready and start the game
   useEffect(() => {
     if (gameState?.status === 'setup') {
-      const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
-      if (allPlayersReady) {
-        const gameRef = doc(firestore, "games", gameId);
-        const playerIds = Object.keys(gameState.players);
-        const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
-        
-        updateDoc(gameRef, {
-            status: 'playing',
-            currentTurn: startingPlayerId,
-            calledNumbers: []
-        });
-      }
+        const botPlayer = Object.values(gameState.players).find(p => p.isBot);
+        // If there's a bot and it's not ready, make it ready.
+        if (botPlayer && !botPlayer.isBoardReady) {
+            const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 25);
+            const gameRef = doc(firestore, "games", gameId);
+            updateDoc(gameRef, {
+                [`players.${botPlayer.id}.board`]: botBoard,
+                [`players.${botPlayer.id}.isBoardReady`]: true,
+            });
+            // Don't proceed to start the game yet, wait for the next snapshot
+            return; 
+        }
+
+        const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
+        if (allPlayersReady) {
+            const gameRef = doc(firestore, "games", gameId);
+            const playerIds = Object.keys(gameState.players);
+            const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+            
+            updateDoc(gameRef, {
+                status: 'playing',
+                currentTurn: startingPlayerId,
+                calledNumbers: []
+            });
+        }
     }
   }, [gameState, gameId]);
 
@@ -259,7 +250,7 @@ export default function GamePage() {
     if (!gameState || localPlayerId !== gameState.hostId) return;
 
     const playerCount = Object.values(gameState.players).length;
-    if (playerCount < 2 && !gameState.isBotGame) {
+    if (playerCount < 2) {
         toast({ variant: 'destructive', title: "Not enough players!", description: "You need at least two players to start."});
         return;
     }

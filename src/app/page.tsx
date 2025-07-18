@@ -83,13 +83,27 @@ export default function Home() {
         isBoardReady: false,
         isBot: false,
       };
+      
+      const players = {
+        [localPlayerId]: hostPlayer,
+      };
+
+      if(isBotGame) {
+        const botId = 'bot_player_1';
+        players[botId] = {
+           id: botId,
+           name: 'BingoBot',
+           board: [],
+           isBoardReady: false, // Bot will be ready after setup
+           isBot: true,
+        };
+      }
+
 
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
-        players: {
-          [localPlayerId]: hostPlayer,
-        },
+        players: players,
         calledNumbers: [],
         currentTurn: null,
         winner: null,

@@ -49,7 +49,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
 
   const isHost = localPlayerId === hostId;
   const localPlayerIsInGame = players.some(p => p.id === localPlayerId);
-  const canStartGame = isHost && players.length >= 2;
+  const canStartGame = isHost && (isBotGame ? players.length === 2 : players.length >= 2);
   const maxPlayers = isBotGame ? 2 : 4;
 
 
@@ -58,7 +58,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
       <CardHeader className="text-center">
         <CardTitle>Game Lobby</CardTitle>
         <CardDescription>
-          {isBotGame ? "Get your board ready to play against the bot!" : (localPlayerIsInGame ? "Share this game with friends. The host will start when ready." : "Join the game to begin!")}
+          {isBotGame ? "You are playing against the bot. The host will start when ready." : (localPlayerIsInGame ? "Share this game with friends. The host will start when ready." : "Join the game to begin!")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -106,7 +106,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
           </ul>
         </div>
         {localPlayerIsInGame ? (
-             isHost && !isBotGame && (
+             isHost && (
                 <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
                     {canStartGame ? 'Start Game' : `Waiting for players... (${players.length}/${maxPlayers})`}
                 </Button>
@@ -122,5 +122,3 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
     </Card>
   );
 }
-
-    
