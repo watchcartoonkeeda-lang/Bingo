@@ -49,19 +49,8 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
 
   const isHost = localPlayerId === hostId;
   const localPlayerIsInGame = players.some(p => p.id === localPlayerId);
-  const readyPlayersCount = players.filter(p => p.isBoardReady).length;
-  const canStartGame = isHost && readyPlayersCount >= 2;
+  const canStartGame = isHost && players.length >= 2;
   const maxPlayers = isBotGame ? 2 : 4;
-
-  const getStartButtonText = () => {
-    if (players.length < 2 && !isBotGame) {
-      return "Waiting for another player...";
-    }
-    if (readyPlayersCount < 2 && !isBotGame) {
-      return `Waiting for players to be ready (${readyPlayersCount}/${players.length})`;
-    }
-    return "Start Game";
-  };
 
 
   return (
@@ -73,7 +62,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!isBotGame && (
+        {!isBotGame && localPlayerIsInGame && (
           <div className="flex flex-col items-center gap-4">
             <div className="p-4 bg-white rounded-lg">
               <QRCode value={joinLink} size={128} />
@@ -104,10 +93,8 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
                   </Avatar>
                   {p.name} {p.id === hostId && <span className="text-xs font-normal text-primary">(Host)</span>}
                 </div>
-                {p.isBoardReady ?
-                  <span className="flex items-center gap-1.5 text-xs text-green-400"><CheckCircle className="h-4 w-4" /> Ready</span> :
-                  <span className="flex items-center gap-1.5 text-xs text-amber-400"><Hourglass className="h-4 w-4" /> Setting up...</span>
-                }
+                {/* Status indicator is less important now, but can be kept for flavor */}
+                <span className="flex items-center gap-1.5 text-xs text-green-400"><CheckCircle className="h-4 w-4" /> Joined</span>
               </li>
             ))}
             {players.length < maxPlayers && !isBotGame && (
@@ -121,13 +108,13 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
         {localPlayerIsInGame ? (
              isHost && !isBotGame && (
                 <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
-                    {getStartButtonText()}
+                    {canStartGame ? 'Start Game' : `Waiting for players... (${players.length}/${maxPlayers})`}
                 </Button>
              )
         ) : (
-          <Button onClick={onJoinGame} disabled={isJoining} size="lg" className="w-full">
+          <Button onClick={onJoinGame} disabled={isJoining || players.length >= maxPlayers} size="lg" className="w-full">
             {isJoining ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
-            Join Game
+            {players.length >= maxPlayers ? 'Game Full' : 'Join Game'}
           </Button>
         )}
         
@@ -135,3 +122,5 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJ
     </Card>
   );
 }
+
+    

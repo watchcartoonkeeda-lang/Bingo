@@ -2,10 +2,10 @@
 // src/app/game/[gameId]/page.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc, getDoc, arrayUnion } from "firebase/firestore";
-import { firestore, authReadyPromise } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
 import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
 import { GameOverDialog } from "@/components/game-over-dialog";
@@ -18,6 +18,7 @@ import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { playBotTurn } from "@/ai/flows/bot-player";
 import { GameInstructions } from "@/components/game-instructions";
+import { SetupTimer } from "@/components/setup-timer";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -84,9 +85,9 @@ export default function GamePage() {
       
       const gameData = docSnap.data() as GameState;
 
-      // If it's a bot game and only the host is in, add the bot.
+      // If it's a bot game and only the host is in, add the bot and go to setup.
       if (gameData.isBotGame && gameData.status === 'waiting' && gameData.players[localPlayerId] && Object.keys(gameData.players).length === 1) {
-        if(gameData.hostId === localPlayerId){ // only host triggers this
+        if(gameData.hostId === localPlayerId){ 
             const botId = 'bot_player_1';
             if (!gameData.players[botId]) {
               const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
@@ -94,7 +95,7 @@ export default function GamePage() {
                   id: botId,
                   name: 'BingoBot',
                   board: botBoard,
-                  isBoardReady: true,
+                  isBoardReady: true, // Bot is always ready
                   isBot: true,
               };
               await updateDoc(gameRef, { 
@@ -115,8 +116,26 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, router, toast, localPlayerId]);
+
+  // Effect to check if all players are ready and start the game
+  useEffect(() => {
+    if (gameState?.status === 'setup') {
+      const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
+      if (allPlayersReady) {
+        const gameRef = doc(firestore, "games", gameId);
+        const playerIds = Object.keys(gameState.players);
+        const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+        
+        updateDoc(gameRef, {
+            status: 'playing',
+            currentTurn: startingPlayerId,
+            calledNumbers: []
+        });
+      }
+    }
+  }, [gameState, gameId]);
+
 
   // Effect to check for bingo readiness and notify the player
   useEffect(() => {
@@ -152,7 +171,6 @@ export default function GamePage() {
             });
 
             if (botResult.shouldCallBingo) {
-                // Bot calls Bingo
                 const botWon = checkWin(botPlayer.board, gameState.calledNumbers);
                 const gameRef = doc(firestore, "games", gameId);
                 if (botWon) {
@@ -161,13 +179,10 @@ export default function GamePage() {
                         winner: botPlayer.id,
                     });
                 } else {
-                    // This case should ideally not happen if bot logic is correct
                     console.log("Bot called Bingo but didn't win. What a silly bot.");
-                     // Bot calls a number instead of ending game on false bingo
                     await handleCallNumber(botResult.chosenNumber, botPlayer.id);
                 }
             } else {
-                // Bot calls a number
                 await handleCallNumber(botResult.chosenNumber, botPlayer.id);
             }
         };
@@ -178,7 +193,7 @@ export default function GamePage() {
 
 
   const handleJoinGame = async () => {
-      if (!localPlayerId || !gameState || isJoining || gameState.players[localPlayerId]) return;
+      if (!localPlayerId || !gameState || isJoining || (localPlayerId && gameState.players[localPlayerId])) return;
       
       const playerCount = Object.keys(gameState.players).length;
       if (playerCount >= gameState.maxPlayers) {
@@ -189,7 +204,6 @@ export default function GamePage() {
       setIsJoining(true);
       try {
           const gameRef = doc(firestore, "games", gameId);
-          // Prompt for name before joining
           const name = prompt("Please enter your name:");
           if (!name) {
               setIsJoining(false);
@@ -233,67 +247,38 @@ export default function GamePage() {
     });
   };
   
-  const handleRandomizeBoard = () => {
+  const handleRandomizeBoard = useCallback(() => {
     const shuffled = [...ALL_NUMBERS].sort(() => 0.5 - Math.random());
     setPlayerBoard(shuffled.slice(0, 25));
-  };
+  }, []);
 
 
-  const handleConfirmBoard = async () => {
-    const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
+  const handleConfirmBoard = useCallback(async (boardToConfirm: (number | null)[]) => {
+    const isBoardSetupComplete = boardToConfirm.every((cell) => cell !== null);
     if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
 
     const gameRef = doc(firestore, "games", gameId);
     
-    // Set board ready state first
     await updateDoc(gameRef, {
-      [`players.${localPlayerId}.board`]: playerBoard,
+      [`players.${localPlayerId}.board`]: boardToConfirm,
       [`players.${localPlayerId}.isBoardReady`]: true,
     });
-    
-    // Refresh game state to check if we can start
-    const updatedGameDoc = await getDoc(gameRef);
-    const updatedGameState = updatedGameDoc.data() as GameState;
-
-    // If it's a bot game, confirming your board starts the game
-    if (updatedGameState.isBotGame) {
-        const playerIds = Object.keys(updatedGameState.players);
-        const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
-
-        await updateDoc(gameRef, {
-            status: 'playing',
-            currentTurn: startingPlayerId,
-            calledNumbers: []
-        });
-    }
-  };
+  }, [gameId, localPlayerId, gameState]);
 
   const handleStartGame = async () => {
     if (!gameState || localPlayerId !== gameState.hostId) return;
 
-    const readyPlayers = Object.values(gameState.players).filter(p => p.isBoardReady);
-    if (readyPlayers.length < 2 && !gameState.isBotGame) {
-        toast({ variant: 'destructive', title: "Not enough players are ready!", description: "At least two players must confirm their boards."});
+    const playerCount = Object.values(gameState.players).length;
+    if (playerCount < 2 && !gameState.isBotGame) {
+        toast({ variant: 'destructive', title: "Not enough players!", description: "You need at least two players to start."});
         return;
     }
     
     const gameRef = doc(firestore, "games", gameId);
-    const readyPlayerIds = readyPlayers.map(p => p.id);
-    const startingPlayerId = readyPlayerIds[Math.floor(Math.random() * readyPlayerIds.length)];
-
-    // Construct a new players object containing only the ready players
-    const inGamePlayers: {[key: string]: Player} = {};
-    for (const player of readyPlayers) {
-        inGamePlayers[player.id] = player;
-    }
-    
     await updateDoc(gameRef, {
-      status: 'playing',
-      players: inGamePlayers, // Only include ready players in the game
-      currentTurn: startingPlayerId,
-      calledNumbers: []
+      status: 'setup',
     });
-}
+  }
 
 
   const handleCallNumber = async (num: number, callerId: string) => {
@@ -343,45 +328,11 @@ export default function GamePage() {
   };
 
   const handleResetGame = async () => {
-    if (!gameState) return;
+    if (!gameState || localPlayerId !== gameState.hostId) return;
     
     const gameRef = doc(firestore, "games", gameId);
-    const originalDoc = await getDoc(gameRef);
-    if (!originalDoc.exists()) return;
     
-    const originalGameState = originalDoc.data() as GameState;
-
-    const freshPlayers: {[key: string]: Player} = {};
-    for (const id in originalGameState.players) {
-        const player = originalGameState.players[id];
-        if (player.isBot) {
-            // Keep the bot, but reset its board
-            const newBotBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
-            freshPlayers[id] = {
-                ...player,
-                board: newBotBoard,
-                isBoardReady: true
-            }
-        } else {
-             freshPlayers[id] = {
-                ...player,
-                board: [],
-                isBoardReady: false,
-            };
-        }
-    }
-    
-    let newStatus = gameState.isBotGame ? "setup" : "waiting";
-
-    await updateDoc(gameRef, {
-      status: newStatus,
-      calledNumbers: [],
-      currentTurn: null,
-      winner: null,
-      players: freshPlayers,
-    });
-
-    setPlayerBoard(INITIAL_BOARD);
+    router.push('/');
   };
 
 
@@ -393,39 +344,41 @@ export default function GamePage() {
       </div>
     );
   }
+
+  const handleTimerEnd = useCallback(() => {
+    if (localPlayer && !localPlayer.isBoardReady) {
+        const randomBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 25);
+        setPlayerBoard(randomBoard);
+        handleConfirmBoard(randomBoard);
+        toast({
+            title: "Time's up!",
+            description: "Your board has been randomized for you.",
+        });
+    }
+  }, [localPlayer, handleConfirmBoard, toast]);
   
   const renderContent = () => {
-    // If it's a bot game, we might skip the 'waiting' state entirely for the UI
-    const status = gameState.isBotGame && gameState.status === 'waiting' && localPlayerId && gameState.players[localPlayerId] ? 'setup' : gameState.status;
-
-
-    switch (status) {
+    switch (gameState.status) {
       case "waiting":
           return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} onJoinGame={handleJoinGame} isJoining={isJoining} isBotGame={gameState.isBotGame} />;
 
       case "setup":
-        const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
         if (localPlayer && localPlayer.isBoardReady) {
-            const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
-            const isHost = localPlayerId === gameState.hostId;
             return (
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        { gameState.isBotGame ? "Starting game..." : (isHost ? "Waiting for other players to ready up. You can start when at least two are ready." : "Waiting for the host to start the game...")}
+                        Waiting for other players to finish setting up their boards...
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
-                    {isHost && !gameState.isBotGame && (
-                        <Button onClick={handleStartGame} disabled={Object.values(gameState.players).filter(p => p.isBoardReady).length < 2} className="mt-4">
-                            Start Game Now
-                        </Button>
-                    )}
                 </div>
             );
         }
+        const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
         return (
           <div className="flex flex-col items-center w-full gap-8">
             <GameInstructions />
+            <SetupTimer duration={120} onTimerEnd={handleTimerEnd} />
             <BoardSetup
               board={playerBoard}
               onPlaceNumber={handlePlaceNumber}
@@ -436,7 +389,7 @@ export default function GamePage() {
               <Button onClick={handleRandomizeBoard} variant="outline">
                 Randomize Board
               </Button>
-              <Button onClick={handleConfirmBoard} disabled={!isBoardSetupComplete} size="lg">
+              <Button onClick={() => handleConfirmBoard(playerBoard)} disabled={!isBoardSetupComplete} size="lg">
                 Confirm Board
               </Button>
             </div>
@@ -506,3 +459,5 @@ export default function GamePage() {
     </main>
   );
 }
+
+    
