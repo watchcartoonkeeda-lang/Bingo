@@ -98,12 +98,14 @@ export function GameOverDialog({
           url: window.location.href,
         });
       } catch (error) {
+         // Fallback to copying the link if the share API fails for any reason.
          if (error instanceof Error && error.name !== 'AbortError') {
-           console.error("Error sharing:", error);
+            console.error("Could not use Web Share API, falling back to clipboard.", error);
          }
          fallbackCopy();
       }
     } else {
+      // Fallback for browsers that don't support the Web Share API
       fallbackCopy();
     }
   };
