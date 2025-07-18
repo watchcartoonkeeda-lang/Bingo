@@ -335,16 +335,6 @@ export default function GamePage() {
     router.push('/');
   };
 
-
-  if (isLoading || !gameState || !localPlayerId) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading Game...</p>
-      </div>
-    );
-  }
-
   const handleTimerEnd = useCallback(() => {
     if (localPlayer && !localPlayer.isBoardReady) {
         const randomBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 25);
@@ -356,6 +346,15 @@ export default function GamePage() {
         });
     }
   }, [localPlayer, handleConfirmBoard, toast]);
+
+  if (isLoading || !gameState || !localPlayerId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading Game...</p>
+      </div>
+    );
+  }
   
   const renderContent = () => {
     switch (gameState.status) {
@@ -459,5 +458,3 @@ export default function GamePage() {
     </main>
   );
 }
-
-    
