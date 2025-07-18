@@ -10,11 +10,10 @@ interface BoardSetupProps {
   board: (number | null)[];
   onPlaceNumber: (index: number, num: number) => void;
   onRandomize: () => void;
+  numbersToUse: number[];
 }
 
-const ALL_NUMBERS = Array.from({ length: 25 }, (_, i) => i + 1);
-
-export function BoardSetup({ board, onPlaceNumber }: BoardSetupProps) {
+export function BoardSetup({ board, onPlaceNumber, numbersToUse }: BoardSetupProps) {
   const [selectedCell, setSelectedCell] = useState<number | null>(null);
 
   const handleCellClick = (index: number) => {
@@ -24,20 +23,23 @@ export function BoardSetup({ board, onPlaceNumber }: BoardSetupProps) {
   const handleNumberClick = (num: number) => {
     if (selectedCell !== null) {
       onPlaceNumber(selectedCell, num);
-      setSelectedCell(null); // Deselect after placing a number
+      // Keep cell selected to allow rapid placement
+      // setSelectedCell(null);
     }
   };
   
   const placedNumbers = board.filter(n => n !== null);
+  const availableNumbers = numbersToUse.filter(n => !board.includes(n));
+
 
   return (
-    <div className="w-full max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+    <div className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
       <div className="md:col-span-2">
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Set Up Your Bingo Board</CardTitle>
             <CardDescription>
-              Click a cell on the grid, then select a number from the bank to place it.
+              Click a cell, then pick a number. You need 25 unique numbers.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -67,24 +69,24 @@ export function BoardSetup({ board, onPlaceNumber }: BoardSetupProps) {
         <CardHeader>
           <CardTitle>Number Bank</CardTitle>
            <CardDescription>
-              Available: {25 - placedNumbers.length}
+              Placed: {placedNumbers.length} / 25
             </CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-96">
+          <ScrollArea className="h-[450px]">
             <div className="grid grid-cols-4 gap-2">
-              {ALL_NUMBERS.map((num) => {
+              {numbersToUse.map((num) => {
                 const isPlaced = board.includes(num);
                 return (
                   <Button
                     key={num}
                     variant={isPlaced ? "secondary" : "outline"}
-                    disabled={selectedCell === null && isPlaced}
+                    disabled={isPlaced || selectedCell === null}
                     onClick={() => handleNumberClick(num)}
                     className={cn(
-                      "aspect-square h-auto text-lg font-semibold transition-all",
+                      "aspect-square h-auto text-base font-semibold transition-all",
                       isPlaced ? "opacity-30" : "hover:bg-accent hover:text-accent-foreground",
-                      selectedCell !== null && !isPlaced ? "animate-pulse" : ""
+                       selectedCell !== null && !isPlaced ? "animate-pulse" : ""
                     )}
                   >
                     {num}

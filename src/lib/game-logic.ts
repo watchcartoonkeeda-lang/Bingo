@@ -17,6 +17,9 @@ export const WINNING_COMBINATIONS = [
 ];
 
 export function checkWin(board: (number | null)[], calledNumbers: number[]): boolean {
+  if (!board || board.length !== 25) {
+    return false;
+  }
   if (board.some(cell => cell === null)) {
     return false;
   }

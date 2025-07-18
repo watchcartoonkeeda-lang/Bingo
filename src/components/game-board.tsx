@@ -5,18 +5,21 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { cn } from "@/lib/utils";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Loader2 } from "lucide-react";
 
 interface GameBoardProps {
   playerBoard: (number | null)[];
   calledNumbers: number[];
   onCallNumber: (num: number) => void;
-  currentTurn: "PLAYER" | "AI";
-  isAiThinking: boolean;
+  currentTurn: "PLAYER" | "AI"; // Represents if it's the local player's turn
+  isAiThinking: boolean; // Represents if waiting for the other player
+  numbersToCall: (number | null)[];
 }
 
-export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTurn, isAiThinking }: GameBoardProps) {
+export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTurn, isAiThinking, numbersToCall }: GameBoardProps) {
   const isPlayerTurn = currentTurn === 'PLAYER';
+
+  const availableNumbersToCall = numbersToCall.filter(n => n !== null && !calledNumbers.includes(n));
 
   return (
     <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
@@ -26,32 +29,27 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTur
             <div>
               <CardTitle>Your Board</CardTitle>
               <CardDescription>
-                {isPlayerTurn ? "Your turn! Call a number." : "Waiting for AI..."}
+                {isPlayerTurn ? "Your turn! Pick a number to call." : "Waiting for opponent..."}
               </CardDescription>
             </div>
             <div className={cn("flex items-center gap-2 p-2 rounded-lg transition-all", isPlayerTurn ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground')}>
               {isPlayerTurn ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-              <span className="font-semibold">{isPlayerTurn ? "Your Turn" : "AI's Turn"}</span>
+              <span className="font-semibold">{isPlayerTurn ? "Your Turn" : "Opponent's Turn"}</span>
+               {isAiThinking && <Loader2 className="h-5 w-5 animate-spin"/>}
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-5 gap-2 aspect-square">
               {playerBoard.map((num, index) => {
                 const isCalled = num !== null && calledNumbers.includes(num);
-                const canCall = isPlayerTurn && !isCalled && !isAiThinking;
-
                 return (
-                  <button
+                  <div
                     key={index}
-                    onClick={() => num && canCall && onCallNumber(num)}
-                    disabled={!canCall}
                     className={cn(
                       "flex items-center justify-center text-xl font-bold rounded-md border-2 transition-all duration-200 aspect-square relative overflow-hidden",
-                      "disabled:cursor-not-allowed",
                       isCalled
                         ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-secondary/50 dark:bg-gray-800 border-transparent hover:border-primary",
-                      canCall && "cursor-pointer hover:scale-105 hover:shadow-lg"
+                        : "bg-secondary/50 dark:bg-gray-800 border-transparent",
                     )}
                     aria-label={`Cell ${index + 1}, number ${num}`}
                   >
@@ -61,7 +59,7 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTur
                       </div>
                     )}
                     <span className="relative z-10">{num}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -72,14 +70,42 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTur
       <div className="flex flex-col gap-6">
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Called Numbers</CardTitle>
-            <CardDescription>Total: {calledNumbers.length} / 25</CardDescription>
+            <CardTitle>Numbers To Call</CardTitle>
+            <CardDescription>Click a number to call it on your turn.</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-64">
               <div className="flex flex-wrap gap-2">
-                {calledNumbers.map((num) => (
-                  <Badge key={num} variant="secondary" className="text-lg font-semibold w-12 h-12 flex items-center justify-center bg-accent text-accent-foreground">
+                {availableNumbersToCall.map((num) => (
+                  <button
+                    key={num}
+                    disabled={!isPlayerTurn || isAiThinking}
+                    onClick={() => onCallNumber(num!)}
+                    className={cn(
+                      "text-lg font-semibold w-12 h-12 flex items-center justify-center rounded-md transition-colors",
+                      "border-2 border-transparent bg-accent text-accent-foreground",
+                      "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-secondary",
+                      "hover:bg-accent/80 hover:border-primary"
+                    )}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle>Called Numbers</CardTitle>
+            <CardDescription>Total: {calledNumbers.length} / 75</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-40">
+              <div className="flex flex-wrap gap-2">
+                {calledNumbers.slice().reverse().map((num) => (
+                  <Badge key={num} variant="secondary" className="text-base font-semibold w-10 h-10 flex items-center justify-center">
                     {num}
                   </Badge>
                 ))}
@@ -87,13 +113,6 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTur
             </ScrollArea>
           </CardContent>
         </Card>
-        <div className="flex justify-center">
-          <AIAdvisor
-            playerBoard={playerBoard}
-            calledNumbers={calledNumbers}
-            disabled={!isPlayerTurn || isAiThinking}
-          />
-        </div>
       </div>
     </div>
   );
