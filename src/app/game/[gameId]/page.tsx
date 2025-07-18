@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
 import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
@@ -57,24 +57,46 @@ export default function GamePage() {
     setLocalPlayerId(playerId);
   }, []);
 
-  // Effect to subscribe to game state changes
+  // Effect to subscribe to game state changes and handle joining
   useEffect(() => {
-    if (!gameId) return;
+    if (!gameId || !localPlayerId) return;
 
     const gameRef = doc(firestore, "games", gameId);
+
     const unsubscribe = onSnapshot(gameRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const gameData = docSnap.data() as GameState;
-        setGameState(gameData);
-        setIsLoading(false);
-      } else {
+      if (!docSnap.exists()) {
         toast({
           variant: "destructive",
           title: "Game not found",
           description: "This game does not exist or has been deleted.",
         });
         router.push("/");
+        return;
       }
+      
+      const gameData = docSnap.data() as GameState;
+      setGameState(gameData);
+      setIsLoading(false);
+
+      const players = Object.values(gameData.players);
+      const localPlayerInGame = gameData.players[localPlayerId];
+
+      // Player Joining Logic - if not in game, join.
+      if (!localPlayerInGame && players.length < 2) {
+        const newPlayer: Player = {
+          id: localPlayerId,
+          name: `Player ${players.length + 1}`,
+          board: [],
+          isBoardReady: false,
+        };
+        updateDoc(gameRef, { [`players.${localPlayerId}`]: newPlayer });
+      }
+
+      // Transition to Setup
+      if (gameData.status === 'waiting' && Object.keys(gameData.players).length === 2) {
+        updateDoc(gameRef, { status: 'setup' });
+      }
+
     }, (error) => {
       console.error("Firestore snapshot error:", error);
       toast({
@@ -85,47 +107,14 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameId, router, toast]);
+  }, [gameId, localPlayerId, router, toast]);
 
-  // Combined effect to handle game state logic: joining, starting, and draw conditions.
+  // Effect to check for draw condition
   useEffect(() => {
-    if (!localPlayerId || !gameState) return;
+    if (!gameState || gameState.status !== 'playing' || gameState.winner) return;
 
-    const gameRef = doc(firestore, "games", gameId);
-    const players = Object.values(gameState.players);
-    const playerIds = Object.keys(gameState.players);
-    const localPlayerInGame = gameState.players[localPlayerId];
-
-    // Player Joining Logic
-    if (gameState.status === 'waiting' && playerIds.length < 2 && !localPlayerInGame) {
-      const newPlayer: Player = {
-        id: localPlayerId,
-        name: `Player ${playerIds.length + 1}`,
-        board: [],
-        isBoardReady: false,
-      };
-      updateDoc(gameRef, { [`players.${localPlayerId}`]: newPlayer });
-      return; // Return early to wait for next snapshot
-    }
-    
-    // Transition to Setup
-    if (gameState.status === 'waiting' && players.length === 2 && players.every(p => p.id)) {
-      updateDoc(gameRef, { status: 'setup' });
-      return;
-    }
-
-    // Transition to Playing
-    if (gameState.status === 'setup' && players.length === 2 && players.every(p => p.isBoardReady)) {
-      const startingPlayerId = players[Math.floor(Math.random() * players.length)].id;
-      updateDoc(gameRef, {
-        status: 'playing',
-        currentTurn: startingPlayerId
-      });
-      return;
-    }
-
-    // Check for Draw condition
-    if (gameState.status === 'playing' && !gameState.winner && gameState.calledNumbers.length === 75) {
+    if (gameState.calledNumbers.length === 75) {
+      const players = Object.values(gameState.players);
       let aWinnerWasFound = false;
       for (const player of players) {
         if (player.board && player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)) {
@@ -134,13 +123,13 @@ export default function GamePage() {
         }
       }
       if (!aWinnerWasFound) {
-        updateDoc(gameRef, {
+        updateDoc(doc(firestore, "games", gameId), {
           status: 'finished',
           winner: 'DRAW',
         });
       }
     }
-  }, [localPlayerId, gameState, gameId]);
+  }, [gameState, gameId]);
 
 
   const handlePlaceNumber = (index: number, num: number) => {
@@ -170,13 +159,31 @@ export default function GamePage() {
 
   const handleConfirmBoard = async () => {
     const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
-    if (!localPlayerId || !isBoardSetupComplete) return;
+    if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
 
     const gameRef = doc(firestore, "games", gameId);
+    
+    // Update player's own board and ready status
     await updateDoc(gameRef, {
       [`players.${localPlayerId}.board`]: playerBoard,
       [`players.${localPlayerId}.isBoardReady`]: true,
     });
+
+    // After updating, check if BOTH players are ready to start the game.
+    // We need to get the latest game state to make this check reliable.
+    const updatedGameSnap = await getDoc(gameRef);
+    if (!updatedGameSnap.exists()) return;
+
+    const updatedGameData = updatedGameSnap.data() as GameState;
+    const allPlayers = Object.values(updatedGameData.players);
+
+    if (updatedGameData.status === 'setup' && allPlayers.length === 2 && allPlayers.every(p => p.isBoardReady)) {
+       const startingPlayerId = allPlayers[Math.floor(Math.random() * allPlayers.length)].id;
+       await updateDoc(gameRef, {
+        status: 'playing',
+        currentTurn: startingPlayerId
+      });
+    }
   };
 
 
