@@ -62,6 +62,11 @@ This project requires a Firebase project to handle the backend, database, and au
           }
         }
         ```
+    *   **Create Composite Indexes for Leaderboards**:
+        *   The new streak-based leaderboards require composite indexes to work. Firestore will log an error in the browser's developer console with a direct link to create the missing index.
+        *   Run the app, attempt to view the streak leaderboards, and look for an error message in the console that starts with: `FirebaseError: The query requires an index.`
+        *   Click the link provided in that error message. It will take you directly to the Firebase console with the correct settings pre-filled to create the required index.
+        *   You will need to do this for each of the new leaderboard tabs (Daily, Weekly, Monthly).
 
 ### 3. Configure Environment Variables
 

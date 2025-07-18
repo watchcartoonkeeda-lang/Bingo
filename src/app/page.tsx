@@ -75,7 +75,6 @@ export default function Home() {
 
   const handleSignIn = async () => {
     try {
-      setAuthStatus("loading");
       await signInWithGoogle();
       // onAuthStateChanged will handle setting the user and auth status
     } catch (error: any) {
@@ -290,7 +289,6 @@ export default function Home() {
                   Sign in with Google
                 </Button>
               </div>
-              <Leaderboard />
           </div>
         );
 
@@ -371,7 +369,6 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </main>
   );
 }
