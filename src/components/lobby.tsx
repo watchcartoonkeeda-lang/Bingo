@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Users, Loader2, CheckCircle, Hourglass, Bot, User } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useRouter } from "next/navigation";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface Player {
   id: string;
@@ -25,12 +24,13 @@ interface LobbyProps {
   hostId: string | null;
   localPlayerId: string | null;
   onStartGame: () => void;
+  onJoinGame: () => void;
+  isJoining: boolean;
   isBotGame: boolean;
 }
 
-export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isBotGame }: LobbyProps) {
+export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, onJoinGame, isJoining, isBotGame }: LobbyProps) {
   const { toast } = useToast();
-  const router = useRouter();
   const [joinLink, setJoinLink] = useState("");
 
   useState(() => {
@@ -48,16 +48,16 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
   };
 
   const isHost = localPlayerId === hostId;
+  const localPlayerIsInGame = players.some(p => p.id === localPlayerId);
   const readyPlayersCount = players.filter(p => p.isBoardReady).length;
   const canStartGame = isHost && readyPlayersCount >= 2;
   const maxPlayers = isBotGame ? 2 : 4;
-
 
   const getStartButtonText = () => {
     if (players.length < 2 && !isBotGame) {
       return "Waiting for another player...";
     }
-    if (readyPlayersCount < 2) {
+    if (readyPlayersCount < 2 && !isBotGame) {
       return "Waiting for players to be ready";
     }
     return "Start Game";
@@ -69,7 +69,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
       <CardHeader className="text-center">
         <CardTitle>Game Lobby</CardTitle>
         <CardDescription>
-          {isBotGame ? "Get your board ready to play against the bot!" : "Share this game with friends to begin. The host will start the game when at least 2 players are ready."}
+          {isBotGame ? "Get your board ready to play against the bot!" : (localPlayerIsInGame ? "Share this game with friends. The host will start when ready." : "Join the game to begin!")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -118,11 +118,19 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
             )}
           </ul>
         </div>
-        {isHost && !isBotGame && (
-          <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
-            {getStartButtonText()}
+        {localPlayerIsInGame ? (
+             isHost && !isBotGame && (
+                <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
+                    {getStartButtonText()}
+                </Button>
+             )
+        ) : (
+          <Button onClick={onJoinGame} disabled={isJoining} size="lg" className="w-full">
+            {isJoining ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : null}
+            Join Game
           </Button>
         )}
+        
       </CardContent>
     </Card>
   );

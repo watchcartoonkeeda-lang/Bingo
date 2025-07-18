@@ -69,7 +69,7 @@ export default function GamePage() {
   const localPlayer = gameState?.players?.[localPlayerId || ''];
   const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
 
-  // Effect to subscribe to game state and auto-join the user.
+  // Effect to subscribe to game state changes
   useEffect(() => {
     if (!gameId || !localPlayerId) return;
 
@@ -84,30 +84,24 @@ export default function GamePage() {
       
       const gameData = docSnap.data() as GameState;
 
-      // Auto-join logic for non-hosts
-      if (localPlayerId && !gameData.players[localPlayerId] && gameData.status !== 'playing' && gameData.status !== 'finished') {
-          const playerCount = Object.keys(gameData.players).length;
-          if (playerCount < gameData.maxPlayers) {
-            await handleJoinGame(gameData);
-          }
-      }
-      
-      // If it's a bot game and the local player (host) is in, add the bot.
+      // If it's a bot game and only the host is in, add the bot.
       if (gameData.isBotGame && gameData.status === 'waiting' && gameData.players[localPlayerId] && Object.keys(gameData.players).length === 1) {
         if(gameData.hostId === localPlayerId){ // only host triggers this
             const botId = 'bot_player_1';
-            const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
-            const botPlayer: Player = {
-                id: botId,
-                name: 'BingoBot',
-                board: botBoard,
-                isBoardReady: true,
-                isBot: true,
-            };
-            await updateDoc(gameRef, { 
-              [`players.${botId}`]: botPlayer,
-              status: 'setup' 
-            });
+            if (!gameData.players[botId]) {
+              const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
+              const botPlayer: Player = {
+                  id: botId,
+                  name: 'BingoBot',
+                  board: botBoard,
+                  isBoardReady: true,
+                  isBot: true,
+              };
+              await updateDoc(gameRef, { 
+                [`players.${botId}`]: botPlayer,
+                status: 'setup' 
+              });
+            }
         }
       }
 
@@ -183,30 +177,33 @@ export default function GamePage() {
   }, [gameState?.status, gameState?.currentTurn, gameId]);
 
 
-  const handleJoinGame = async (gameData: GameState) => {
-      if (!localPlayerId || !gameData || gameData.players[localPlayerId]) return;
+  const handleJoinGame = async () => {
+      if (!localPlayerId || !gameState || isJoining || gameState.players[localPlayerId]) return;
       
-      const playerCount = Object.keys(gameData.players).length;
-      if (playerCount >= gameData.maxPlayers) {
+      const playerCount = Object.keys(gameState.players).length;
+      if (playerCount >= gameState.maxPlayers) {
           toast({ variant: "destructive", title: "Game is full"});
-          router.push("/");
           return;
       }
 
       setIsJoining(true);
       try {
           const gameRef = doc(firestore, "games", gameId);
+          // Prompt for name before joining
+          const name = prompt("Please enter your name:");
+          if (!name) {
+              setIsJoining(false);
+              return;
+          }
           const newPlayer: Player = {
               id: localPlayerId,
-              name: `Player ${playerCount + 1}`,
+              name: name,
               board: [],
               isBoardReady: false,
               isBot: false,
           };
           
-          let updates: any = { [`players.${localPlayerId}`]: newPlayer };
-          
-          await updateDoc(gameRef, updates);
+          await updateDoc(gameRef, { [`players.${localPlayerId}`]: newPlayer });
 
       } catch (error) {
           console.error("Error joining game:", error);
@@ -254,9 +251,13 @@ export default function GamePage() {
       [`players.${localPlayerId}.isBoardReady`]: true,
     });
     
+    // Refresh game state to check if we can start
+    const updatedGameDoc = await getDoc(gameRef);
+    const updatedGameState = updatedGameDoc.data() as GameState;
+
     // If it's a bot game, confirming your board starts the game
-    if (gameState.isBotGame) {
-        const playerIds = Object.keys(gameState.players);
+    if (updatedGameState.isBotGame) {
+        const playerIds = Object.keys(updatedGameState.players);
         const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
 
         await updateDoc(gameRef, {
@@ -271,7 +272,7 @@ export default function GamePage() {
       if (!gameState || localPlayerId !== gameState.hostId) return;
 
       const readyPlayers = Object.values(gameState.players).filter(p => p.isBoardReady);
-      if (readyPlayers.length < 2) {
+      if (readyPlayers.length < 2 && !gameState.isBotGame) {
           toast({ variant: 'destructive', title: "Not enough players are ready!"});
           return;
       }
@@ -344,7 +345,6 @@ export default function GamePage() {
   const handleResetGame = async () => {
     if (!gameState) return;
     
-    // We need the original game doc to know all players who were ever in the lobby
     const gameRef = doc(firestore, "games", gameId);
     const originalDoc = await getDoc(gameRef);
     if (!originalDoc.exists()) return;
@@ -401,26 +401,25 @@ export default function GamePage() {
 
     switch (status) {
       case "waiting":
-          if (!localPlayer) {
-              return (
-                  <div className="text-center">
-                       <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-                       <p className="mt-4 text-muted-foreground">Joining Lobby...</p>
-                  </div>
-              );
-          }
-          return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} isBotGame={gameState.isBotGame} />;
+          return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} onJoinGame={handleJoinGame} isJoining={isJoining} isBotGame={gameState.isBotGame} />;
 
       case "setup":
         const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
         if (localPlayer && localPlayer.isBoardReady) {
+            const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
+            const isHost = localPlayerId === gameState.hostId;
             return (
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        { gameState.isBotGame ? "Starting game..." : "Waiting for the host to start the game..."}
+                        { gameState.isBotGame ? "Starting game..." : (isHost ? "Waiting for players. You can start when at least two are ready." : "Waiting for the host to start the game...")}
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
+                    {isHost && !gameState.isBotGame && (
+                        <Button onClick={handleStartGame} disabled={Object.values(gameState.players).filter(p => p.isBoardReady).length < 2} className="mt-4">
+                            Start Game Now
+                        </Button>
+                    )}
                 </div>
             );
         }

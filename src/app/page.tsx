@@ -2,7 +2,7 @@
 // src/app/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc } from "firebase/firestore";
 import { firestore, authReadyPromise } from "@/lib/firebase";
@@ -11,6 +11,18 @@ import { AppLogo } from "@/components/icons";
 import { Loader2, AlertTriangle, User, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 
 type AuthStatus = "loading" | "authenticated" | "error";
@@ -19,6 +31,9 @@ export default function Home() {
   const [isGameLoading, setIsGameLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [authError, setAuthError] = useState<any>(null);
+  const [showNameDialog, setShowNameDialog] = useState(false);
+  const [playerName, setPlayerName] = useState("");
+  const gameModeToCreate = useRef<'bot' | 'friends' | null>(null);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -32,10 +47,26 @@ export default function Home() {
       });
   }, []);
 
-  const createNewGame = async (isBotGame: boolean = false) => {
+  const handleCreateGameRequest = (mode: 'bot' | 'friends') => {
+    gameModeToCreate.current = mode;
+    setShowNameDialog(true);
+  }
+
+  const createNewGame = async () => {
+    if (!playerName.trim() || !gameModeToCreate.current) {
+        toast({
+            variant: "destructive",
+            title: "Player name is required.",
+        });
+        return;
+    }
+    
     setIsGameLoading(true);
+    setShowNameDialog(false);
+    
+    const isBotGame = gameModeToCreate.current === 'bot';
+
     try {
-      // Ensure we have a local player ID before creating the game
       let localPlayerId = sessionStorage.getItem("playerId");
       if (!localPlayerId) {
         localPlayerId = `player_${Math.random().toString(36).substring(2, 9)}`;
@@ -45,16 +76,14 @@ export default function Home() {
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
-      // Create the host player object
       const hostPlayer = {
         id: localPlayerId,
-        name: `Player 1`,
+        name: playerName,
         board: [],
         isBoardReady: false,
         isBot: false,
       };
 
-      // Create the game document with the host already in it.
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
@@ -66,7 +95,7 @@ export default function Home() {
         winner: null,
         maxPlayers: isBotGame ? 2 : 4,
         isBotGame: isBotGame,
-        hostId: localPlayerId, // Set the creator as the host
+        hostId: localPlayerId,
       });
       
       router.push(`/game/${gameId}`);
@@ -77,7 +106,6 @@ export default function Home() {
         title: "Error Creating Game",
         description: "Could not create a new game. This is likely a Firestore Security Rules issue. Please check the instructions on the home page.",
       });
-      // Force a re-render to show the error card if rules are wrong
       setAuthStatus("error"); 
       setAuthError({ code: 'firestore/permission-denied' });
       setIsGameLoading(false);
@@ -156,12 +184,12 @@ service cloud.firestore {
           Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button onClick={() => createNewGame(false)} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
-            {isGameLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
+          <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
+            {isGameLoading && gameModeToCreate.current === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
             Play with Friends
           </Button>
-          <Button onClick={() => createNewGame(true)} disabled={isGameLoading} size="lg" variant="secondary" className="w-full sm:w-auto">
-            {isGameLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2"/>}
+          <Button onClick={() => handleCreateGameRequest('bot')} disabled={isGameLoading} size="lg" variant="secondary" className="w-full sm:w-auto">
+            {isGameLoading && gameModeToCreate.current === 'bot' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2"/>}
             Play with Bot
           </Button>
         </div>
@@ -173,6 +201,34 @@ service cloud.firestore {
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-4 bg-background dark:bg-gray-900">
       {renderContent()}
+
+      <AlertDialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enter Your Name</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please enter your name to start the game. This will be visible to other players.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="player-name">Player Name</Label>
+            <Input
+              id="player-name"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Bingo Champion"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={createNewGame} disabled={!playerName.trim()}>
+              {isGameLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Game"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </main>
   );
 }
