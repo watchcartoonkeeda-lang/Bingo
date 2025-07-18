@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Users, Loader2, CheckCircle, Hourglass, Bot } from "lucide-react";
+import { Copy, Users, Loader2, CheckCircle, Hourglass, Bot, User } from "lucide-react";
 
 interface Player {
   id: string;
