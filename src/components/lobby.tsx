@@ -1,3 +1,4 @@
+
 // src/components/lobby.tsx
 "use client";
 
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Users, Loader2, CheckCircle, Hourglass, Bot, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useRouter } from "next/navigation";
 
 interface Player {
   id: string;
@@ -28,6 +30,7 @@ interface LobbyProps {
 
 export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isBotGame }: LobbyProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [joinLink, setJoinLink] = useState("");
 
   useState(() => {
@@ -46,7 +49,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
 
   const isHost = localPlayerId === hostId;
   const readyPlayersCount = players.filter(p => p.isBoardReady).length;
-  const canStartGame = readyPlayersCount >= 2;
+  const canStartGame = isHost && readyPlayersCount >= 2;
   const maxPlayers = isBotGame ? 2 : 4;
 
 
@@ -118,11 +121,6 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
         {isHost && !isBotGame && (
           <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
             {getStartButtonText()}
-          </Button>
-        )}
-         {isHost && isBotGame && (
-          <Button onClick={() => router.push(`/game/${gameId}`)} size="lg" className="w-full">
-            Go to Setup
           </Button>
         )}
       </CardContent>

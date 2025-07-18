@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { firestore, authReadyPromise } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
