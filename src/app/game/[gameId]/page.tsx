@@ -75,6 +75,13 @@ export default function GamePage() {
         });
         router.push("/");
       }
+    }, (error) => {
+      console.error("Firestore snapshot error:", error);
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: "Could not connect to the game server.",
+      });
     });
 
     return () => unsubscribe();
@@ -102,7 +109,7 @@ export default function GamePage() {
     }
     
     // Transition to Setup
-    if (gameState.status === 'waiting' && players.length === 2) {
+    if (gameState.status === 'waiting' && players.length === 2 && players.every(p => p.id)) {
       updateDoc(gameRef, { status: 'setup' });
       return;
     }
