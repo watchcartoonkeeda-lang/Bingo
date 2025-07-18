@@ -83,26 +83,28 @@ export default function GamePage() {
   // Effect to handle player joining
   useEffect(() => {
     const joinGame = async () => {
-        if (!localPlayerId || !gameState || gameState.status !== 'waiting') return;
-        
-        const playerIds = Object.keys(gameState.players);
-        if (playerIds.length < 2 && !gameState.players[localPlayerId]) {
-            const gameRef = doc(firestore, "games", gameId);
-            const newPlayer: Player = {
-                id: localPlayerId,
-                name: `Player ${playerIds.length + 1}`,
-                board: [],
-                isBoardReady: false,
-            };
+      if (!localPlayerId || !gameState || gameState.status !== 'waiting') return;
+      
+      const playerIds = Object.keys(gameState.players);
+      if (playerIds.length < 2 && !gameState.players[localPlayerId]) {
+        const gameRef = doc(firestore, "games", gameId);
+        const newPlayer: Player = {
+          id: localPlayerId,
+          name: `Player ${playerIds.length + 1}`,
+          board: [],
+          isBoardReady: false,
+        };
 
-            await updateDoc(gameRef, {
-                [`players.${localPlayerId}`]: newPlayer,
-            });
-        }
+        await updateDoc(gameRef, {
+          [`players.${localPlayerId}`]: newPlayer,
+        });
+      }
     };
 
-    joinGame();
-  }, [localPlayerId, gameState?.status, gameId]);
+    if (gameState) {
+        joinGame();
+    }
+  }, [localPlayerId, gameState, gameId]);
 
 
   const handlePlaceNumber = (index: number, num: number) => {
@@ -142,19 +144,22 @@ export default function GamePage() {
   
   // Effect to start game when both players are ready
   useEffect(() => {
-    if (!gameState || gameState.status !== 'setup') return;
+    const startGame = async () => {
+        if (!gameState || gameState.status !== 'setup') return;
 
-    const players = Object.values(gameState.players);
-    if (players.length === 2 && players.every(p => p.isBoardReady)) {
-      const gameRef = doc(firestore, "games", gameId);
-      // Randomly select who starts
-      const startingPlayerId = players[Math.floor(Math.random() * players.length)].id;
-      updateDoc(gameRef, {
-        status: 'playing',
-        currentTurn: startingPlayerId
-      });
-    }
-  }, [gameState?.status, gameState?.players, gameId]);
+        const players = Object.values(gameState.players);
+        if (players.length === 2 && players.every(p => p.isBoardReady)) {
+            const gameRef = doc(firestore, "games", gameId);
+            const startingPlayerId = players[Math.floor(Math.random() * players.length)].id;
+            await updateDoc(gameRef, {
+                status: 'playing',
+                currentTurn: startingPlayerId
+            });
+        }
+    };
+
+    startGame();
+  }, [gameState, gameId]);
 
 
   const handleCallNumber = async (num: number) => {
@@ -220,36 +225,42 @@ export default function GamePage() {
   
   // Effect to check for game start
   useEffect(() => {
-      if (!gameState || gameState.status !== 'waiting') return;
-      const players = Object.values(gameState.players);
-      if (players.length === 2) {
-          const gameRef = doc(firestore, 'games', gameId);
-          updateDoc(gameRef, { status: 'setup' });
-      }
-  }, [gameState?.status, gameState?.players, gameId]);
+    const checkGameStart = async () => {
+        if (!gameState || gameState.status !== 'waiting') return;
+        const players = Object.values(gameState.players);
+        if (players.length === 2) {
+            const gameRef = doc(firestore, 'games', gameId);
+            await updateDoc(gameRef, { status: 'setup' });
+        }
+    }
+    checkGameStart();
+  }, [gameState, gameId]);
   
   // Effect to check for a draw
   useEffect(() => {
-    if (!gameState || gameState.status !== 'playing' || gameState.winner) return;
+    const checkForDraw = async () => {
+        if (!gameState || gameState.status !== 'playing' || gameState.winner) return;
 
-    if (gameState.calledNumbers.length === 75) {
-       let aWinnerWasFound = false;
-       for (const player of Object.values(gameState.players)) {
-         if(player.board && player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)){
-            aWinnerWasFound = true;
-            break;
-         }
-       }
-       
-       if(!aWinnerWasFound) {
-         const gameRef = doc(firestore, "games", gameId);
-         updateDoc(gameRef, {
-            status: 'finished',
-            winner: 'DRAW',
-         });
-       }
-    }
-  }, [gameState?.status, gameState?.calledNumbers, gameState?.winner, gameState?.players, gameId]);
+        if (gameState.calledNumbers.length === 75) {
+           let aWinnerWasFound = false;
+           for (const player of Object.values(gameState.players)) {
+             if(player.board && player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)){
+                aWinnerWasFound = true;
+                break;
+             }
+           }
+           
+           if(!aWinnerWasFound) {
+             const gameRef = doc(firestore, "games", gameId);
+             await updateDoc(gameRef, {
+                status: 'finished',
+                winner: 'DRAW',
+             });
+           }
+        }
+    };
+    checkForDraw();
+  }, [gameState, gameId]);
 
 
   if (isLoading || !gameState || !localPlayerId) {
@@ -353,6 +364,7 @@ export default function GamePage() {
               playerBoard={localPlayer.board}
               calledNumbers={gameState.calledNumbers}
               disabled={gameState.currentTurn !== localPlayerId}
+              opponentName={otherPlayer?.name || 'the other player'}
             />
           )}
         </header>

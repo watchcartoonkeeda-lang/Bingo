@@ -18,18 +18,14 @@ export default function Home() {
   const createNewGame = async () => {
     setIsLoading(true);
     try {
-      // Using a simple random ID for the game
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
-      
-      const initialNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
 
       await setDoc(gameRef, {
         id: gameId,
-        status: "waiting", // waiting, playing, finished
+        status: "waiting",
         players: {},
         calledNumbers: [],
-        availableNumbers: initialNumbers,
         currentTurn: null,
         winner: null,
         createdAt: serverTimestamp(),
@@ -41,7 +37,7 @@ export default function Home() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Could not create a new game. Please check your Firebase setup and try again.",
+        description: "Could not create a new game. Please try again.",
       });
       setIsLoading(false);
     }

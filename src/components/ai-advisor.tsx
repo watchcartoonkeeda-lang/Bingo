@@ -10,9 +10,10 @@ interface AIAdvisorProps {
   playerBoard: (number | null)[];
   calledNumbers: number[];
   disabled: boolean;
+  opponentName: string;
 }
 
-export function AIAdvisor({ playerBoard, calledNumbers, disabled }: AIAdvisorProps) {
+export function AIAdvisor({ playerBoard, calledNumbers, disabled, opponentName }: AIAdvisorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -27,7 +28,7 @@ export function AIAdvisor({ playerBoard, calledNumbers, disabled }: AIAdvisorPro
       const response = await personalizedGameTips({
         playerBoard: validPlayerBoard,
         calledNumbers: calledNumbers,
-        opponentName: "AI Opponent",
+        opponentName: opponentName,
       });
       toast({
         title: "💡 AI Game Advisor",
