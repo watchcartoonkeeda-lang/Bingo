@@ -68,6 +68,103 @@ export default function GamePage() {
   const gameResultRecorded = useRef(false);
   const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const localPlayer = gameState?.players?.[localPlayerId || ''];
+  const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
+
+  // Define handler functions before useEffects that use them
+  const handleJoinGame = async () => {
+      if (!localPlayerId || !gameState || isJoining || (localPlayerId && gameState.players[localPlayerId]) || !user) return;
+      
+      const playerCount = Object.keys(gameState.players).length;
+      if (playerCount >= gameState.maxPlayers) {
+          toast({ variant: "destructive", title: "Game is full"});
+          return;
+      }
+
+      setIsJoining(true);
+      try {
+          const gameRef = doc(firestore, "games", gameId);
+          const newPlayer: Player = {
+              id: localPlayerId,
+              name: user.displayName || 'Anonymous Player',
+              board: [],
+              isBoardReady: false,
+              isBot: false,
+          };
+          
+          await updateDoc(gameRef, { 
+              [`players.${localPlayerId}`]: newPlayer,
+              [`playerTimes.${localPlayerId}`]: TOTAL_GAME_TIME,
+           });
+
+      } catch (error) {
+          console.error("Error joining game:", error);
+          toast({ variant: "destructive", title: "Error", description: "Could not join the game." });
+      } finally {
+          setIsJoining(false);
+      }
+  };
+
+  const handleCallNumber = useCallback(async (num: number, callerId: string) => {
+    if (!gameState || gameState.calledNumbers.includes(num)) return;
+    
+    const gameRef = doc(firestore, "games", gameId);
+    
+    const playerIds = Object.keys(gameState.players);
+    const currentPlayerIndex = playerIds.indexOf(callerId);
+    const nextPlayerId = playerIds[(currentPlayerIndex + 1) % playerIds.length];
+
+    const newCalledNumbers = [...gameState.calledNumbers, num];
+    
+    // Update player time
+    let remainingTime = gameState.playerTimes[callerId];
+    if (gameState.turnStartTime && typeof gameState.turnStartTime.toDate === 'function') {
+        const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
+        const endTime = Date.now();
+        const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
+        remainingTime = Math.max(0, gameState.playerTimes[callerId] - elapsedSeconds);
+    }
+
+    if (newCalledNumbers.length === ALL_NUMBERS.length) {
+      await updateDoc(gameRef, {
+        status: 'finished',
+        winner: 'DRAW',
+        calledNumbers: arrayUnion(num)
+      });
+    } else {
+      await updateDoc(gameRef, {
+        calledNumbers: arrayUnion(num),
+        currentTurn: nextPlayerId,
+        [`playerTimes.${callerId}`]: remainingTime,
+        turnStartTime: serverTimestamp(),
+      });
+    }
+  }, [gameState, gameId]);
+
+  const handleConfirmBoard = useCallback(async (boardToConfirm: (number | null)[]) => {
+    const isBoardSetupComplete = boardToConfirm.every((cell) => cell !== null);
+    if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
+
+    const gameRef = doc(firestore, "games", gameId);
+    
+    await updateDoc(gameRef, {
+      [`players.${localPlayerId}.board`]: boardToConfirm,
+      [`players.${localPlayerId}.isBoardReady`]: true,
+    });
+  }, [gameId, localPlayerId, gameState]);
+
+  const handleTimerEnd = useCallback(() => {
+    if (localPlayer && !localPlayer.isBoardReady) {
+        const randomBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 25);
+        setPlayerBoard(randomBoard);
+        handleConfirmBoard(randomBoard);
+        toast({
+            title: "Time's up!",
+            description: "Your board has been randomized for you.",
+        });
+    }
+  }, [localPlayer, handleConfirmBoard, toast]);
+  
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -80,9 +177,6 @@ export default function GamePage() {
     });
     return () => unsubscribe();
   }, [router, toast]);
-
-  const localPlayer = gameState?.players?.[localPlayerId || ''];
-  const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
 
   // Effect to subscribe to game state changes
   useEffect(() => {
@@ -270,41 +364,6 @@ export default function GamePage() {
     }
   }, [gameState, gameId]);
 
-
-  const handleJoinGame = async () => {
-      if (!localPlayerId || !gameState || isJoining || (localPlayerId && gameState.players[localPlayerId]) || !user) return;
-      
-      const playerCount = Object.keys(gameState.players).length;
-      if (playerCount >= gameState.maxPlayers) {
-          toast({ variant: "destructive", title: "Game is full"});
-          return;
-      }
-
-      setIsJoining(true);
-      try {
-          const gameRef = doc(firestore, "games", gameId);
-          const newPlayer: Player = {
-              id: localPlayerId,
-              name: user.displayName || 'Anonymous Player',
-              board: [],
-              isBoardReady: false,
-              isBot: false,
-          };
-          
-          await updateDoc(gameRef, { 
-              [`players.${localPlayerId}`]: newPlayer,
-              [`playerTimes.${localPlayerId}`]: TOTAL_GAME_TIME,
-           });
-
-      } catch (error) {
-          console.error("Error joining game:", error);
-          toast({ variant: "destructive", title: "Error", description: "Could not join the game." });
-      } finally {
-          setIsJoining(false);
-      }
-  };
-
-
   const handlePlaceNumber = (index: number, num: number) => {
     setPlayerBoard((prev) => {
       const newBoard = [...prev];
@@ -329,19 +388,6 @@ export default function GamePage() {
     setPlayerBoard(shuffled.slice(0, 25));
   }, []);
 
-
-  const handleConfirmBoard = useCallback(async (boardToConfirm: (number | null)[]) => {
-    const isBoardSetupComplete = boardToConfirm.every((cell) => cell !== null);
-    if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
-
-    const gameRef = doc(firestore, "games", gameId);
-    
-    await updateDoc(gameRef, {
-      [`players.${localPlayerId}.board`]: boardToConfirm,
-      [`players.${localPlayerId}.isBoardReady`]: true,
-    });
-  }, [gameId, localPlayerId, gameState]);
-
   const handleStartGame = async () => {
     if (!gameState || localPlayerId !== gameState.hostId) return;
 
@@ -356,43 +402,6 @@ export default function GamePage() {
       status: 'setup',
     });
   }
-
-
-  const handleCallNumber = useCallback(async (num: number, callerId: string) => {
-    if (!gameState || gameState.calledNumbers.includes(num)) return;
-    
-    const gameRef = doc(firestore, "games", gameId);
-    
-    const playerIds = Object.keys(gameState.players);
-    const currentPlayerIndex = playerIds.indexOf(callerId);
-    const nextPlayerId = playerIds[(currentPlayerIndex + 1) % playerIds.length];
-
-    const newCalledNumbers = [...gameState.calledNumbers, num];
-    
-    // Update player time
-    let remainingTime = gameState.playerTimes[callerId];
-    if (gameState.turnStartTime && typeof gameState.turnStartTime.toDate === 'function') {
-        const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
-        const endTime = Date.now();
-        const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
-        remainingTime = Math.max(0, gameState.playerTimes[callerId] - elapsedSeconds);
-    }
-
-    if (newCalledNumbers.length === ALL_NUMBERS.length) {
-      await updateDoc(gameRef, {
-        status: 'finished',
-        winner: 'DRAW',
-        calledNumbers: arrayUnion(num)
-      });
-    } else {
-      await updateDoc(gameRef, {
-        calledNumbers: arrayUnion(num),
-        currentTurn: nextPlayerId,
-        [`playerTimes.${callerId}`]: remainingTime,
-        turnStartTime: serverTimestamp(),
-      });
-    }
-  }, [gameState, gameId]);
   
   const handleBingoCall = async () => {
     if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
@@ -414,18 +423,6 @@ export default function GamePage() {
         });
     }
   };
-
-  const handleTimerEnd = useCallback(() => {
-    if (localPlayer && !localPlayer.isBoardReady) {
-        const randomBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0, 25);
-        setPlayerBoard(randomBoard);
-        handleConfirmBoard(randomBoard);
-        toast({
-            title: "Time's up!",
-            description: "Your board has been randomized for you.",
-        });
-    }
-  }, [localPlayer, handleConfirmBoard, toast]);
 
   if (isLoading || !gameState || !localPlayerId || !user) {
     return (
@@ -539,3 +536,5 @@ export default function GamePage() {
     </main>
   );
 }
+
+    
