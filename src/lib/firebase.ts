@@ -7,6 +7,7 @@ import {
   onAuthStateChanged, 
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
   type Auth, 
   type User 
 } from "firebase/auth";
@@ -38,6 +39,10 @@ const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = () => {
   return signInWithPopup(auth, googleProvider);
+};
+
+export const signOutUser = () => {
+  return signOut(auth);
 };
 
 export { app, auth, firestore, onAuthStateChanged, type User };

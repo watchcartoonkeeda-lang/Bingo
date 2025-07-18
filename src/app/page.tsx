@@ -5,10 +5,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, updateDoc } from "firebase/firestore";
-import { firestore, auth, signInWithGoogle, onAuthStateChanged, type User as FirebaseUser } from "@/lib/firebase";
+import { firestore, auth, signInWithGoogle, onAuthStateChanged, signOutUser, type User as FirebaseUser } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
-import { Loader2, AlertTriangle, User, Bot, ChevronDown, LogIn } from "lucide-react";
+import { Loader2, AlertTriangle, User, Bot, ChevronDown, LogIn, LogOut } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -50,7 +50,6 @@ export default function Home() {
   const { toast } = useToast();
 
   useEffect(() => {
-    setAuthStatus("loading"); // Set loading state on initial mount
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -76,6 +75,7 @@ export default function Home() {
 
   const handleSignIn = async () => {
     try {
+      setAuthStatus("loading");
       await signInWithGoogle();
       // onAuthStateChanged will handle setting the user and auth status
     } catch (error: any) {
@@ -91,6 +91,16 @@ export default function Home() {
       });
       setAuthStatus("error");
       setAuthError(error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      toast({ title: "Signed Out", description: "You have been successfully signed out." });
+      // onAuthStateChanged will handle the rest
+    } catch (error) {
+      toast({ variant: "destructive", title: "Sign Out Failed", description: "Could not sign out." });
     }
   };
 
@@ -288,9 +298,13 @@ export default function Home() {
         return (
           <div className="text-center space-y-12">
             <div className="space-y-4">
-              <header className="flex items-center justify-center mb-8">
-                <AppLogo />
-              </header>
+               <header className="flex items-center justify-between w-full max-w-lg mx-auto">
+                 <AppLogo />
+                 <Button onClick={handleSignOut} variant="ghost" size="sm">
+                   <LogOut className="mr-2 h-4 w-4" />
+                   Log Out
+                 </Button>
+               </header>
               <h2 className="text-2xl font-bold mb-4">Welcome, {user?.displayName || 'Player'}!</h2>
               <p className="text-muted-foreground mb-8 max-w-md mx-auto">
                 Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
