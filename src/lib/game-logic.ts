@@ -24,7 +24,7 @@ function isCombinationWinner(combination: number[], board: (number | null)[], ca
 }
 
 
-export function checkWin(board: (number | null)[], calledNumbers: number[]): boolean {
+export function checkWin(board: (number | null)[], calledNumbers: number[], linesToWin: number = 1): boolean {
   if (!board || board.length !== 25) {
     return false;
   }
@@ -32,7 +32,8 @@ export function checkWin(board: (number | null)[], calledNumbers: number[]): boo
     return false;
   }
   
-  return WINNING_COMBINATIONS.some(combination => isCombinationWinner(combination, board, calledNumbers));
+  const completedLines = countWinningLines(board, calledNumbers);
+  return completedLines >= linesToWin;
 }
 
 export function countWinningLines(board: (number | null)[], calledNumbers: number[]): number {

@@ -18,14 +18,15 @@ interface GameBoardProps {
   otherPlayerName: string;
   allNumbers: number[];
   completedLines: number;
+  linesToWin: number;
 }
 
-export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers, completedLines }: GameBoardProps) {
+export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers, completedLines, linesToWin }: GameBoardProps) {
   const isPlayerTurn = currentTurnId === localPlayerId;
   
   const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}...`;
 
-  const canCallBingo = completedLines >= 5;
+  const canCallBingo = completedLines >= linesToWin;
 
   return (
     <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
@@ -111,7 +112,7 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
                 disabled={!canCallBingo}
              >
                 <PartyPopper className="mr-2 h-5 w-5" />
-                Bingo! ({completedLines}/5 Lines)
+                Bingo! ({completedLines}/{linesToWin} Lines)
             </Button>
           </CardContent>
         </Card>

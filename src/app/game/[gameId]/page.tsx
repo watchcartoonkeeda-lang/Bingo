@@ -35,7 +35,7 @@ type GameState = {
 
 const INITIAL_BOARD = Array(25).fill(null);
 const ALL_NUMBERS = Array.from({ length: 25 }, (_, i) => i + 1);
-
+const LINES_TO_WIN = 5;
 
 export default function GamePage() {
   const params = useParams();
@@ -186,28 +186,20 @@ export default function GamePage() {
     const currentPlayerIndex = playerIds.indexOf(localPlayerId);
     const nextPlayerId = playerIds[(currentPlayerIndex + 1) % playerIds.length];
 
-    // Check for a win after calling a number
     const newCalledNumbers = [...gameState.calledNumbers, num];
-    const player = gameState.players[localPlayerId];
-    if (checkWin(player.board, newCalledNumbers)) {
-        await updateDoc(gameRef, {
-            status: 'finished',
-            winner: localPlayerId,
-            calledNumbers: arrayUnion(num)
-        });
-    } else if (newCalledNumbers.length === 25) {
-        // Check for draw
-        await updateDoc(gameRef, {
-            status: 'finished',
-            winner: 'DRAW',
-            calledNumbers: arrayUnion(num)
-        });
-    }
-    else {
-        await updateDoc(gameRef, {
-            calledNumbers: arrayUnion(num),
-            currentTurn: nextPlayerId,
-        });
+    
+    if (newCalledNumbers.length === 25) {
+      // It's a draw if the board is full and no one has won
+      await updateDoc(gameRef, {
+        status: 'finished',
+        winner: 'DRAW',
+        calledNumbers: arrayUnion(num)
+      });
+    } else {
+      await updateDoc(gameRef, {
+        calledNumbers: arrayUnion(num),
+        currentTurn: nextPlayerId,
+      });
     }
   };
   
@@ -215,7 +207,7 @@ export default function GamePage() {
     if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
 
     const player = gameState.players[localPlayerId];
-    const playerWon = checkWin(player.board, gameState.calledNumbers);
+    const playerWon = checkWin(player.board, gameState.calledNumbers, LINES_TO_WIN);
     const gameRef = doc(firestore, "games", gameId);
 
     if (playerWon) {
@@ -227,7 +219,7 @@ export default function GamePage() {
         toast({
             variant: "destructive",
             title: "Not a Bingo!",
-            description: "You don't have a winning pattern yet. Keep playing!",
+            description: `You need ${LINES_TO_WIN} completed lines to win. Keep playing!`,
         });
     }
   };
@@ -328,6 +320,7 @@ export default function GamePage() {
                 </div>
            )
         }
+        const completedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
         return (
           <GameBoard
             playerBoard={localPlayer.board}
@@ -338,7 +331,8 @@ export default function GamePage() {
             localPlayerId={localPlayerId}
             otherPlayerName={otherPlayer?.name || 'Opponent'}
             allNumbers={ALL_NUMBERS}
-            completedLines={countWinningLines(localPlayer.board, gameState.calledNumbers)}
+            completedLines={completedLines}
+            linesToWin={LINES_TO_WIN}
           />
         );
       
@@ -377,3 +371,4 @@ export default function GamePage() {
     </main>
   );
 }
+
