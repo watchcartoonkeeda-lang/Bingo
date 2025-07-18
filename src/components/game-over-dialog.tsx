@@ -32,6 +32,7 @@ interface GameOverDialogProps {
   isPlayerWinner: boolean;
   onPlayAgain: () => void;
   onGoToLobby: () => void;
+  opponentName: string;
 }
 
 export function GameOverDialog({
@@ -40,6 +41,7 @@ export function GameOverDialog({
   isPlayerWinner,
   onPlayAgain,
   onGoToLobby,
+  opponentName,
 }: GameOverDialogProps) {
   const { toast } = useToast();
   const [winningStreak, setWinningStreak] = useState(0);
@@ -64,7 +66,7 @@ export function GameOverDialog({
     // Update history
     const newResult: GameResult = {
       result: isPlayerWinner ? 'win' : (winnerName === 'DRAW' ? 'draw' : 'loss'),
-      opponent: isPlayerWinner ? (winnerName || 'Yourself') : (winnerName || 'Opponent'),
+      opponent: opponentName,
       date: new Date().toLocaleString()
     };
     const updatedHistory = [newResult, ...storedHistory].slice(0, MAX_HISTORY);
@@ -77,7 +79,7 @@ export function GameOverDialog({
     setWinningStreak(currentStreak);
     setGameHistory(updatedHistory);
 
-  }, [isOpen, isPlayerWinner, winnerName]);
+  }, [isOpen, isPlayerWinner, winnerName, opponentName]);
 
 
   const handleShare = async () => {

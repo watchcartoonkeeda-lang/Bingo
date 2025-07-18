@@ -19,6 +19,7 @@ import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { GameInstructions } from "@/components/game-instructions";
 import { SetupTimer } from "@/components/setup-timer";
+import { recordWin } from "@/lib/player-stats";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -60,6 +61,7 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
+  const winRecordedRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -98,6 +100,14 @@ export default function GamePage() {
         if (playerCount < gameData.maxPlayers) {
             handleJoinGame();
         }
+      }
+
+      if (gameData.status === 'finished' && gameData.winner && !winRecordedRef.current) {
+         const winnerPlayer = gameData.players[gameData.winner];
+         if (winnerPlayer && !winnerPlayer.isBot) {
+            recordWin(gameData.winner);
+            winRecordedRef.current = true;
+         }
       }
 
       setGameState(gameData);
@@ -422,6 +432,8 @@ export default function GamePage() {
       
       case "finished":
         const winnerPlayer = gameState.players[gameState.winner || ''];
+        const opponentName = winnerPlayer?.name || (otherPlayers.length > 0 ? otherPlayers[0].name : 'Opponent');
+
         return (
             <GameOverDialog
                 isOpen={true}
@@ -429,6 +441,7 @@ export default function GamePage() {
                 isPlayerWinner={gameState.winner === localPlayerId}
                 onPlayAgain={handleResetGame}
                 onGoToLobby={() => router.push('/')}
+                opponentName={opponentName}
             />
         );
 

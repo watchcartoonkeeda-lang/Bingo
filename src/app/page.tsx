@@ -30,6 +30,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProfile } from "firebase/auth";
+import { Leaderboard } from "@/components/leaderboard";
+import { updateUserProfile } from "@/lib/player-stats";
 
 type GameMode = 'friends' | 'bot';
 type BotDifficulty = 'normal' | 'hard';
@@ -53,6 +55,12 @@ export default function Home() {
         setUser(currentUser);
         setPlayerName(currentUser.displayName || "");
         setAuthStatus("authenticated");
+        // Also update their profile in Firestore on login
+        updateUserProfile({
+            uid: currentUser.uid,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+        });
       } else {
         setUser(null);
         setAuthStatus("unauthenticated");
@@ -121,6 +129,7 @@ export default function Home() {
     if (finalPlayerName && user.displayName !== finalPlayerName) {
         try {
             await updateProfile(user, { displayName: finalPlayerName });
+            await updateUserProfile({ uid: user.uid, displayName: finalPlayerName, photoURL: user.photoURL });
         } catch (error) {
             console.error("Error updating user profile:", error);
             toast({
@@ -230,7 +239,7 @@ export default function Home() {
           </div>
           <div className="space-y-2">
             <h3 className="font-semibold">Check: Firestore Security Rules</h3>
-            <p className="text-sm text-destructive/80">Your database needs a rule to allow authenticated users to create games.</p>
+            <p className="text-sm text-destructive/80">Your database needs rules to allow authenticated users to create games and for the leaderboard to function.</p>
              <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
                 <li>Go to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
                 <li>Ensure the rules allow writes for authenticated users (see README).</li>
@@ -257,55 +266,61 @@ export default function Home() {
 
       case 'unauthenticated':
         return (
-          <div className="text-center">
-              <header className="flex items-center justify-center mb-8">
-                <AppLogo />
-              </header>
-              <h2 className="text-2xl font-bold mb-4">Welcome to Multiplayer Bingo!</h2>
-              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                Please sign in with Google to start playing.
-              </p>
-              <Button onClick={handleSignIn} size="lg">
-                <LogIn className="mr-2" />
-                Sign in with Google
-              </Button>
+          <div className="text-center space-y-12">
+              <div className="space-y-4">
+                <header className="flex items-center justify-center mb-8">
+                  <AppLogo />
+                </header>
+                <h2 className="text-2xl font-bold mb-4">Welcome to Multiplayer Bingo!</h2>
+                <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                  Sign in with Google to challenge friends or our AI bot and climb the leaderboard!
+                </p>
+                <Button onClick={handleSignIn} size="lg">
+                  <LogIn className="mr-2" />
+                  Sign in with Google
+                </Button>
+              </div>
+              <Leaderboard />
           </div>
         );
 
       case 'authenticated':
         return (
-          <div className="text-center">
-            <header className="flex items-center justify-center mb-8">
-              <AppLogo />
-            </header>
-            <h2 className="text-2xl font-bold mb-4">Welcome, {user?.displayName || 'Player'}!</h2>
-            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
-                {isGameLoading && gameInfoToCreate.current?.mode === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
-                Play with Friends
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                    <Bot className="mr-2"/>
-                    Play with Bot
-                    <ChevronDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'normal')}>
-                    vs Normal Bot
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'hard')}>
-                    vs Hard Bot
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          <div className="text-center space-y-12">
+            <div className="space-y-4">
+              <header className="flex items-center justify-center mb-8">
+                <AppLogo />
+              </header>
+              <h2 className="text-2xl font-bold mb-4">Welcome, {user?.displayName || 'Player'}!</h2>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
+                  {isGameLoading && gameInfoToCreate.current?.mode === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
+                  Play with Friends
+                </Button>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="lg" variant="secondary" className="w-full sm:w-auto">
+                      <Bot className="mr-2"/>
+                      Play with Bot
+                      <ChevronDown className="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'normal')}>
+                      vs Normal Bot
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'hard')}>
+                      vs Hard Bot
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
+            <Leaderboard />
           </div>
         );
     }
@@ -346,5 +361,3 @@ export default function Home() {
     </main>
   );
 }
-
-    
