@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bot, User, Loader2, PartyPopper } from "lucide-react";
+import { countWinningLines } from "@/lib/game-logic";
 
 interface GameBoardProps {
   playerBoard: (number | null)[];
@@ -23,6 +24,9 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
   const isPlayerTurn = currentTurnId === localPlayerId;
   
   const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}...`;
+
+  const completedLines = countWinningLines(playerBoard, calledNumbers);
+  const canCallBingo = completedLines >= 5;
 
   return (
     <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
@@ -101,9 +105,14 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
                 })}
               </div>
             </ScrollArea>
-             <Button onClick={onBingoCall} size="lg" className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
+             <Button 
+                onClick={onBingoCall} 
+                size="lg" 
+                className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90"
+                disabled={!canCallBingo}
+             >
                 <PartyPopper className="mr-2 h-5 w-5" />
-                Bingo!
+                Bingo! ({completedLines}/5 Lines)
             </Button>
           </CardContent>
         </Card>

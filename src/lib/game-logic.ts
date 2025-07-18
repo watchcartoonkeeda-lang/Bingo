@@ -16,6 +16,14 @@ export const WINNING_COMBINATIONS = [
   [4, 8, 12, 16, 20],
 ];
 
+function isCombinationWinner(combination: number[], board: (number | null)[], calledNumbers: number[]): boolean {
+    return combination.every(index => {
+      const boardNumber = board[index];
+      return boardNumber !== null && calledNumbers.includes(boardNumber);
+    });
+}
+
+
 export function checkWin(board: (number | null)[], calledNumbers: number[]): boolean {
   if (!board || board.length !== 25) {
     return false;
@@ -24,10 +32,18 @@ export function checkWin(board: (number | null)[], calledNumbers: number[]): boo
     return false;
   }
   
-  return WINNING_COMBINATIONS.some(combination => {
-    return combination.every(index => {
-      const boardNumber = board[index];
-      return boardNumber !== null && calledNumbers.includes(boardNumber);
-    });
-  });
+  return WINNING_COMBINATIONS.some(combination => isCombinationWinner(combination, board, calledNumbers));
+}
+
+export function countWinningLines(board: (number | null)[], calledNumbers: number[]): number {
+    if (!board || board.length !== 25 || board.some(c => c === null)) {
+        return 0;
+    }
+
+    return WINNING_COMBINATIONS.reduce((count, combination) => {
+        if (isCombinationWinner(combination, board, calledNumbers)) {
+            return count + 1;
+        }
+        return count;
+    }, 0);
 }
