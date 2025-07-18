@@ -192,8 +192,8 @@ export default function GamePage() {
         return;
     }
 
-    const { currentTurn, turnStartTime, isBotGame } = gameState;
-    const botPlayer = Object.values(gameState.players).find(p => p.isBot);
+    const { currentTurn, turnStartTime, isBotGame, players, calledNumbers, botDifficulty } = gameState;
+    const botPlayer = Object.values(players).find(p => p.isBot);
 
     // Bot's Turn
     if (isBotGame && botPlayer && currentTurn === botPlayer.id) {
@@ -202,9 +202,9 @@ export default function GamePage() {
             const botMove = getBotMove(
                 botPlayer.board as number[],
                 localPlayer!.board as number[],
-                gameState.calledNumbers,
+                calledNumbers,
                 ALL_NUMBERS,
-                gameState.botDifficulty || 'normal'
+                botDifficulty || 'normal'
             );
 
             if (botMove.shouldCallBingo) {
@@ -250,34 +250,23 @@ export default function GamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState?.status, gameState?.currentTurn, gameId, localPlayerId]);
 
-  // Effect for chess-style clock
+  // Effect for checking if a player's main clock has run out
   useEffect(() => {
-    if (gameState?.status !== 'playing') return;
+    if (gameState?.status !== 'playing' || !gameState.currentTurn) return;
 
-    const interval = setInterval(async () => {
-        if (!gameState || !gameState.currentTurn || !gameState.turnStartTime) return;
-        
+    const currentPlayerId = gameState.currentTurn;
+    const currentPlayerTime = gameState.playerTimes[currentPlayerId];
+
+    if (currentPlayerTime <= 0) {
+        const winnerId = Object.keys(gameState.players).find(id => id !== currentPlayerId);
         const gameRef = doc(firestore, "games", gameId);
-        const currentPlayerId = gameState.currentTurn;
-        
-        const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
-        const now = Date.now();
-        const elapsedSeconds = Math.floor((now - startTime) / 1000);
-
-        const newTime = Math.max(0, (gameState.playerTimes[currentPlayerId] || TOTAL_GAME_TIME) - elapsedSeconds);
-
-        if (newTime <= 0) {
-            const winnerId = Object.keys(gameState.players).find(id => id !== currentPlayerId);
-            await updateDoc(gameRef, {
-                status: 'finished',
-                winner: winnerId,
-                [`playerTimes.${currentPlayerId}`]: 0,
-            });
-        }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [gameState, gameId]);
+        updateDoc(gameRef, {
+            status: 'finished',
+            winner: winnerId,
+            [`playerTimes.${currentPlayerId}`]: 0,
+        });
+    }
+  }, [gameState?.status, gameState?.currentTurn, gameState?.playerTimes, gameState?.players, gameId]);
 
 
   const handleJoinGame = async () => {
@@ -380,7 +369,7 @@ export default function GamePage() {
     
     // Update player time
     let remainingTime = gameState.playerTimes[callerId];
-    if (gameState.turnStartTime) { // Check if turnStartTime is not null
+    if (gameState.turnStartTime) {
         const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
         const endTime = Date.now();
         const elapsedSeconds = Math.floor((endTime - startTime) / 1000);

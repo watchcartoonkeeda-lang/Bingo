@@ -19,6 +19,7 @@ export function PlayerClock({ playerName, isLocalPlayer, isTurn, timeRemaining, 
     const [displayTime, setDisplayTime] = useState(timeRemaining);
 
     useEffect(() => {
+        // If it's this player's turn, calculate the elapsed time and start a countdown.
         if (isTurn && turnStartTime) {
             const interval = setInterval(() => {
                 const startTime = (turnStartTime.toDate() as Date).getTime();
@@ -29,6 +30,7 @@ export function PlayerClock({ playerName, isLocalPlayer, isTurn, timeRemaining, 
             }, 1000);
             return () => clearInterval(interval);
         } else {
+            // If it's not this player's turn, just show their static remaining time.
             setDisplayTime(timeRemaining);
         }
     }, [isTurn, timeRemaining, turnStartTime]);
