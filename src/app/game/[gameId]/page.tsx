@@ -93,10 +93,11 @@ export default function GamePage() {
     return () => unsubscribe();
   }, [gameId, router, toast]);
 
-    // Effect to check for bingo readiness and notify the player
+  // Effect to check for bingo readiness and notify the player
   useEffect(() => {
-    if (!localPlayer || !gameState) return;
-    if (gameState.status === 'playing' && localPlayer.board.length > 0) {
+    if (!localPlayer || !gameState || gameState.status !== 'playing') return;
+
+    if (localPlayer.board.length > 0) {
       const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
       if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
         toast({
@@ -108,7 +109,7 @@ export default function GamePage() {
       }
       prevCompletedLines.current = currentCompletedLines;
     }
-  }, [gameState?.calledNumbers, gameState, localPlayer, toast]);
+  }, [gameState, localPlayer, toast]);
 
   // Effect for Bot's turn
   useEffect(() => {
@@ -179,7 +180,7 @@ export default function GamePage() {
 
           await updateDoc(gameRef, updates);
           
-          if (gameState.isBotGame) {
+          if (gameState.isBotGame && playerCount === 0) {
             const botId = 'bot_player_1';
             const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
             const botPlayer: Player = {
@@ -311,15 +312,28 @@ export default function GamePage() {
     
     const freshPlayers: {[key: string]: Player} = {};
     for (const id in gameState.players) {
-        freshPlayers[id] = {
-            ...gameState.players[id],
-            board: [],
-            isBoardReady: false,
-        };
+        const player = gameState.players[id];
+        if (player.isBot) {
+            // Keep the bot, but reset its board
+            const newBotBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
+            freshPlayers[id] = {
+                ...player,
+                board: newBotBoard,
+                isBoardReady: true
+            }
+        } else {
+             freshPlayers[id] = {
+                ...player,
+                board: [],
+                isBoardReady: false,
+            };
+        }
     }
+    
+    let newStatus = gameState.isBotGame ? "setup" : "waiting";
 
     await updateDoc(gameRef, {
-      status: "setup",
+      status: newStatus,
       calledNumbers: [],
       currentTurn: null,
       winner: null,
@@ -345,14 +359,14 @@ export default function GamePage() {
           if (!localPlayer) {
               return (
                   <div className="text-center">
-                      <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame}/>
+                      <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} isBotGame={gameState.isBotGame}/>
                       <Button onClick={handleJoinGame} disabled={isJoining} size="lg" className="mt-8">
                           {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Join Game'}
                       </Button>
                   </div>
               );
           }
-          return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} />;
+          return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} isBotGame={gameState.isBotGame} />;
 
       case "setup":
         const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
@@ -361,7 +375,7 @@ export default function GamePage() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        Waiting for the host to start the game...
+                        Waiting for other players to get ready...
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                 </div>
@@ -449,5 +463,3 @@ export default function GamePage() {
     </main>
   );
 }
-
-    
