@@ -80,7 +80,7 @@ export default function Home() {
       // onAuthStateChanged will handle setting the user and auth status
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
-       if (error.code === 'auth/popup-closed-by-user') {
+      if (error.code === 'auth/popup-closed-by-user') {
           setAuthStatus("unauthenticated");
           return;
       }
