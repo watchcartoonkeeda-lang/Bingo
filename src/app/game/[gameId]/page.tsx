@@ -47,7 +47,7 @@ type GameState = {
 };
 
 const INITIAL_BOARD = Array(25).fill(null);
-const ALL_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
+const ALL_NUMBERS = Array.from({ length: 25 }, (_, i) => i + 1);
 const LINES_TO_WIN = 5;
 const TOTAL_GAME_TIME = 300; // 5 minutes in seconds
 const TURN_TIME_LIMIT = 15; // 15 seconds
