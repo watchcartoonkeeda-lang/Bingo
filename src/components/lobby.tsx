@@ -45,7 +45,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
   };
 
   const isHost = localPlayerId === hostId;
-  const canStartGame = isBotGame ? players.every(p => p.isBoardReady) : players.length >= 2 && players.every(p => p.isBoardReady);
+  const canStartGame = players.length >= 2 && players.every(p => p.isBoardReady);
   const maxPlayers = isBotGame ? 2 : 4;
 
 

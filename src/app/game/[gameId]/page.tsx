@@ -81,6 +81,15 @@ export default function GamePage() {
       }
       
       const gameData = docSnap.data() as GameState;
+      
+      // If it's a bot game and the local player just joined, move to setup
+      if (gameData.isBotGame && gameData.status === 'waiting' && localPlayerId && gameData.players[localPlayerId]) {
+        if(gameData.hostId === localPlayerId){ // only host triggers this
+            const gameRef = doc(firestore, "games", gameId);
+            updateDoc(gameRef, { status: 'setup' });
+        }
+      }
+
       setGameState(gameData);
       setIsLoading(false);
 
@@ -91,7 +100,7 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameId, router, toast]);
+  }, [gameId, router, toast, localPlayerId]);
 
   // Effect to check for bingo readiness and notify the player
   useEffect(() => {
@@ -354,7 +363,11 @@ export default function GamePage() {
   }
   
   const renderContent = () => {
-    switch (gameState.status) {
+    // If it's a bot game, we might skip the 'waiting' state entirely for the UI
+    const status = gameState.isBotGame && gameState.status === 'waiting' ? 'setup' : gameState.status;
+
+
+    switch (status) {
       case "waiting":
           if (!localPlayer) {
               return (
@@ -375,7 +388,7 @@ export default function GamePage() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        Waiting for other players to get ready...
+                        { gameState.isBotGame ? "Starting game..." : "Waiting for other players to get ready..."}
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                 </div>
