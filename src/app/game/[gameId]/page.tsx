@@ -57,7 +57,6 @@ export default function GamePage() {
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
 
-  // All hooks called unconditionally at the top level
   useEffect(() => {
     let playerId = sessionStorage.getItem("playerId");
     if (!playerId) {
@@ -113,7 +112,7 @@ export default function GamePage() {
         }
 
         const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
-        if (allPlayersReady) {
+        if (allPlayersReady && Object.values(gameState.players).length > 0) {
             const gameRef = doc(firestore, "games", gameId);
             const playerIds = Object.keys(gameState.players);
             const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
@@ -148,15 +147,15 @@ export default function GamePage() {
 
   // Effect for Bot's turn
   useEffect(() => {
-    if (!gameState || gameState.status !== 'playing' || !gameState.isBotGame) return;
-
+    if (!gameState || gameState.status !== 'playing' || !gameState.isBotGame || !localPlayer) return;
+  
     const botPlayer = Object.values(gameState.players).find(p => p.isBot);
     if (botPlayer && gameState.currentTurn === botPlayer.id) {
         const handleBotTurn = async () => {
             await new Promise(resolve => setTimeout(resolve, 1500)); // Bot "thinks"
             
-            const botMove = getBotMove(botPlayer.board, gameState.calledNumbers, ALL_NUMBERS);
-
+            const botMove = getBotMove(botPlayer.board, localPlayer.board, gameState.calledNumbers, ALL_NUMBERS);
+  
             if (botMove.shouldCallBingo) {
                 const gameRef = doc(firestore, "games", gameId);
                 await updateDoc(gameRef, {
@@ -170,7 +169,7 @@ export default function GamePage() {
         handleBotTurn();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState?.status, gameState?.currentTurn, gameId]);
+  }, [gameState?.status, gameState?.currentTurn, gameId, localPlayer]);
 
 
   const handleJoinGame = async () => {
@@ -250,7 +249,7 @@ export default function GamePage() {
     if (!gameState || localPlayerId !== gameState.hostId) return;
 
     const playerCount = Object.values(gameState.players).length;
-    if (playerCount < 2) {
+    if (playerCount < 2 && !gameState.isBotGame) {
         toast({ variant: 'destructive', title: "Not enough players!", description: "You need at least two players to start."});
         return;
     }

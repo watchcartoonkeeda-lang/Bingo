@@ -49,20 +49,86 @@ export function countWinningLines(board: (number | null)[], calledNumbers: numbe
     }, 0);
 }
 
-export function getBotMove(board: number[], calledNumbers: number[], allNumbers: number[]): { shouldCallBingo: boolean, chosenNumber: number | null } {
-  // 1. Check if the bot has won
-  const hasWon = checkWin(board, calledNumbers);
-  if (hasWon) {
-    return { shouldCallBingo: true, chosenNumber: null };
-  }
+// Helper to find the single number needed to complete a line
+function findWinningNumber(board: number[], combination: number[], calledNumbers: number[]): number | null {
+    const missingNumbers: number[] = [];
+    let calledCount = 0;
 
-  // 2. If not a winner, choose a random available number
-  const availableNumbers = allNumbers.filter(n => !calledNumbers.includes(n));
-  if (availableNumbers.length > 0) {
-    const randomIndex = Math.floor(Math.random() * availableNumbers.length);
-    return { shouldCallBingo: false, chosenNumber: availableNumbers[randomIndex] };
-  }
+    for (const index of combination) {
+        const num = board[index];
+        if (calledNumbers.includes(num)) {
+            calledCount++;
+        } else {
+            missingNumbers.push(num);
+        }
+    }
 
-  // 3. No moves left (should not happen in a normal game)
-  return { shouldCallBingo: false, chosenNumber: null };
+    // If exactly 4 numbers are called, the one missing number is the winning one
+    if (calledCount === 4 && missingNumbers.length === 1) {
+        return missingNumbers[0];
+    }
+    return null;
+}
+
+
+export function getBotMove(
+    botBoard: number[],
+    playerBoard: number[],
+    calledNumbers: number[],
+    allNumbers: number[]
+): { shouldCallBingo: boolean; chosenNumber: number | null } {
+    // 1. Check if the bot has won
+    if (checkWin(botBoard, calledNumbers)) {
+        return { shouldCallBingo: true, chosenNumber: null };
+    }
+
+    const availableNumbers = allNumbers.filter(n => !calledNumbers.includes(n));
+
+    // 2. Priority 1: Find a move for the bot to win immediately
+    for (const combination of WINNING_COMBINATIONS) {
+        const winningMove = findWinningNumber(botBoard, combination, calledNumbers);
+        if (winningMove && availableNumbers.includes(winningMove)) {
+            return { shouldCallBingo: false, chosenNumber: winningMove };
+        }
+    }
+
+    // 3. Priority 2: Find a move to block the player from winning
+    for (const combination of WINNING_COMBINATIONS) {
+        const blockingMove = findWinningNumber(playerBoard, combination, calledNumbers);
+        if (blockingMove && availableNumbers.includes(blockingMove)) {
+            return { shouldCallBingo: false, chosenNumber: blockingMove };
+        }
+    }
+    
+    // 4. Priority 3: Make a strategic move to set up a future win
+    const lineCompletionScores: { [key: number]: number } = {};
+
+    for (const num of availableNumbers) {
+        lineCompletionScores[num] = 0;
+        // Check how many lines this number would help complete for the bot
+        for (const combination of WINNING_COMBINATIONS) {
+            const lineNumbers = combination.map(index => botBoard[index]);
+            if (lineNumbers.includes(num)) {
+                // This move is on a potential winning line
+                const calledInLine = lineNumbers.filter(n => calledNumbers.includes(n)).length;
+                // Prioritize moves that get a line closer to completion
+                lineCompletionScores[num] += (calledInLine + 1); // Add 1 because this move improves it
+            }
+        }
+    }
+    
+    if (Object.keys(lineCompletionScores).length > 0) {
+        const bestMove = Object.keys(lineCompletionScores).reduce((a, b) => lineCompletionScores[a] > lineCompletionScores[b] ? a : b);
+        if (bestMove) {
+            return { shouldCallBingo: false, chosenNumber: parseInt(bestMove, 10) };
+        }
+    }
+    
+    // 5. Fallback: If no strategic moves, choose a random available number
+    if (availableNumbers.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+        return { shouldCallBingo: false, chosenNumber: availableNumbers[randomIndex] };
+    }
+
+    return { shouldCallBingo: false, chosenNumber: null };
 }
