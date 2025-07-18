@@ -49,6 +49,8 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
+  const localPlayer = gameState?.players?.[localPlayerId || ''];
+  const otherPlayer = Object.values(gameState?.players || {}).find(p => p.id !== localPlayerId);
 
   useEffect(() => {
     let playerId = sessionStorage.getItem("playerId");
@@ -84,6 +86,23 @@ export default function GamePage() {
 
     return () => unsubscribe();
   }, [gameId, router, toast]);
+
+    // Effect to check for bingo readiness and notify the player
+  useEffect(() => {
+    if (gameState?.status === 'playing' && localPlayer?.board.length > 0) {
+      const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
+      if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
+        toast({
+          title: "🎉 You can call Bingo now! 🎉",
+          description: `You've completed ${currentCompletedLines} lines. Hit the Bingo button to win!`,
+          duration: 8000,
+          className: "bg-accent border-primary text-accent-foreground",
+        });
+      }
+      prevCompletedLines.current = currentCompletedLines;
+    }
+  }, [gameState?.calledNumbers, gameState?.status, localPlayer, toast]);
+
 
   const handleJoinGame = async () => {
       if (!localPlayerId || !gameState || gameState.players[localPlayerId]) return;
@@ -259,26 +278,6 @@ export default function GamePage() {
     );
   }
   
-  const localPlayer = gameState.players[localPlayerId];
-  const otherPlayer = Object.values(gameState.players).find(p => p.id !== localPlayerId);
-
-  // Effect to check for bingo readiness and notify the player
-  useEffect(() => {
-    if (gameState.status === 'playing' && localPlayer?.board.length > 0) {
-      const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
-      if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
-        toast({
-          title: "🎉 You can call Bingo now! 🎉",
-          description: `You've completed ${currentCompletedLines} lines. Hit the Bingo button to win!`,
-          duration: 8000,
-          className: "bg-accent border-primary text-accent-foreground",
-        });
-      }
-      prevCompletedLines.current = currentCompletedLines;
-    }
-  }, [gameState.calledNumbers, gameState.status, localPlayer, toast]);
-
-
   const renderContent = () => {
     switch (gameState.status) {
       case "waiting":
