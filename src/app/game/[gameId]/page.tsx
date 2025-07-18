@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc, getDoc, arrayUnion } from "firebase/firestore";
-import { firestore } from "@/lib/firebase";
+import { firestore, auth } from "@/lib/firebase";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
 import { GameOverDialog } from "@/components/game-over-dialog";
@@ -54,19 +55,25 @@ export default function GamePage() {
 
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [localPlayerId, setLocalPlayerId] = useState<string | null>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [playerBoard, setPlayerBoard] = useState<(number | null)[]>(INITIAL_BOARD);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
 
   useEffect(() => {
-    let playerId = sessionStorage.getItem("playerId");
-    if (!playerId) {
-      playerId = `player_${Math.random().toString(36).substring(2, 9)}`;
-      sessionStorage.setItem("playerId", playerId);
-    }
-    setLocalPlayerId(playerId);
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        setLocalPlayerId(currentUser.uid);
+      } else {
+        // If not logged in, redirect to home to sign in
+        toast({ variant: "destructive", title: "Not Authenticated", description: "Please sign in to join a game." });
+        router.push("/");
+      }
+    });
+    return () => unsubscribe();
+  }, [router, toast]);
 
   const localPlayer = gameState?.players?.[localPlayerId || ''];
   const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
@@ -181,7 +188,7 @@ export default function GamePage() {
 
 
   const handleJoinGame = async () => {
-      if (!localPlayerId || !gameState || isJoining || (localPlayerId && gameState.players[localPlayerId])) return;
+      if (!localPlayerId || !gameState || isJoining || (localPlayerId && gameState.players[localPlayerId]) || !user) return;
       
       const playerCount = Object.keys(gameState.players).length;
       if (playerCount >= gameState.maxPlayers) {
@@ -192,14 +199,9 @@ export default function GamePage() {
       setIsJoining(true);
       try {
           const gameRef = doc(firestore, "games", gameId);
-          const name = prompt("Please enter your name:");
-          if (!name) {
-              setIsJoining(false);
-              return;
-          }
           const newPlayer: Player = {
               id: localPlayerId,
-              name: name,
+              name: user.displayName || 'Anonymous Player',
               board: [],
               isBoardReady: false,
               isBot: false,
@@ -336,7 +338,7 @@ export default function GamePage() {
   }, [localPlayer, handleConfirmBoard, toast]);
 
   // Loading state must be checked AFTER all hooks are called.
-  if (isLoading || !gameState || !localPlayerId) {
+  if (isLoading || !gameState || !localPlayerId || !user) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />

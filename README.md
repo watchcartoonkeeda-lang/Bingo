@@ -25,10 +25,11 @@ This project requires a Firebase project to handle the backend, database, and au
     *   Give it a nickname and click "Register app".
     *   You will be shown a `firebaseConfig` object. Keep this page open; you will need these values for the next step.
 
-3.  **Enable Anonymous Authentication**:
+3.  **Enable Google Sign-In**:
     *   In the Firebase Console, go to **Authentication** (under the "Build" menu).
     *   Click the **"Sign-in method"** tab.
-    *   Select **"Anonymous"** from the provider list, enable the toggle, and click **Save**.
+    *   Select **"Google"** from the provider list.
+    *   **Enable** the toggle switch, provide a project support email, and click **Save**.
 
 4.  **Set Up Firestore Database**:
     *   In the Firebase Console, go to **Firestore Database** (under the "Build" menu).
@@ -53,7 +54,7 @@ This project requires a Firebase project to handle the backend, database, and au
 The application uses environment variables to connect to your Firebase project.
 
 1.  In the root of the project, create a new file named `.env`.
-2.  Copy the content of `.env.example` into your new `.env` file.
+2.  Copy the content of `.env.example` into your new `.env` file if it exists, otherwise create it from scratch.
 3.  Fill in the values in `.env` using the `firebaseConfig` object from Step 2. All keys start with `NEXT_PUBLIC_`.
 
 Your `.env` file should look like this:
