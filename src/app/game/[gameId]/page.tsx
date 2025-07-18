@@ -187,8 +187,12 @@ export default function GamePage() {
 
   // Effect for turn timers (both bot and human)
   useEffect(() => {
+    // Always clear previous timer on re-render
+    if (turnTimerRef.current) {
+      clearTimeout(turnTimerRef.current);
+    }
+    
     if (!gameState || gameState.status !== 'playing' || !gameState.currentTurn) {
-        if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         return;
     }
 
@@ -197,7 +201,6 @@ export default function GamePage() {
 
     // Bot's Turn
     if (isBotGame && botPlayer && currentTurn === botPlayer.id) {
-        if (turnTimerRef.current) clearTimeout(turnTimerRef.current); // Clear any existing timers
         turnTimerRef.current = setTimeout(() => {
             const botMove = getBotMove(
                 botPlayer.board as number[],
@@ -217,15 +220,16 @@ export default function GamePage() {
     }
 
     // Human Player's Turn
-    if (currentTurn === localPlayerId && turnStartTime) {
+    if (currentTurn === localPlayerId && turnStartTime && typeof turnStartTime.toDate === 'function') {
         const handleTimeout = () => {
             if (!gameState) return; // Game state might have changed
+            const currentGameState = gameState; // Capture state at timeout creation
             toast({
                 variant: 'destructive',
                 title: "Time's up!",
                 description: 'A random number was called for you.',
             });
-            const availableNumbers = ALL_NUMBERS.filter(n => !gameState.calledNumbers.includes(n));
+            const availableNumbers = ALL_NUMBERS.filter(n => !currentGameState.calledNumbers.includes(n));
             const randomMove = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
             handleCallNumber(randomMove, localPlayerId);
         };
@@ -237,7 +241,6 @@ export default function GamePage() {
         if (remaining <= 0) {
             handleTimeout();
         } else {
-            if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
             turnTimerRef.current = setTimeout(handleTimeout, remaining * 1000);
         }
     }
@@ -247,8 +250,7 @@ export default function GamePage() {
         clearTimeout(turnTimerRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState?.status, gameState?.currentTurn, gameId, localPlayerId]);
+  }, [gameState, gameId, localPlayerId, handleCallNumber, toast]);
 
   // Effect for checking if a player's main clock has run out
   useEffect(() => {
@@ -266,7 +268,7 @@ export default function GamePage() {
             [`playerTimes.${currentPlayerId}`]: 0,
         });
     }
-  }, [gameState?.status, gameState?.currentTurn, gameState?.playerTimes, gameState?.players, gameId]);
+  }, [gameState, gameId]);
 
 
   const handleJoinGame = async () => {
@@ -356,7 +358,7 @@ export default function GamePage() {
   }
 
 
-  const handleCallNumber = async (num: number, callerId: string) => {
+  const handleCallNumber = useCallback(async (num: number, callerId: string) => {
     if (!gameState || gameState.calledNumbers.includes(num)) return;
     
     const gameRef = doc(firestore, "games", gameId);
@@ -369,7 +371,7 @@ export default function GamePage() {
     
     // Update player time
     let remainingTime = gameState.playerTimes[callerId];
-    if (gameState.turnStartTime) {
+    if (gameState.turnStartTime && typeof gameState.turnStartTime.toDate === 'function') {
         const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
         const endTime = Date.now();
         const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
@@ -390,7 +392,7 @@ export default function GamePage() {
         turnStartTime: serverTimestamp(),
       });
     }
-  };
+  }, [gameState, gameId]);
   
   const handleBingoCall = async () => {
     if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
