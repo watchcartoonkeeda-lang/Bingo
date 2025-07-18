@@ -379,10 +379,13 @@ export default function GamePage() {
     const newCalledNumbers = [...gameState.calledNumbers, num];
     
     // Update player time
-    const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
-    const endTime = Date.now();
-    const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
-    const remainingTime = Math.max(0, gameState.playerTimes[callerId] - elapsedSeconds);
+    let remainingTime = gameState.playerTimes[callerId];
+    if (gameState.turnStartTime) { // Check if turnStartTime is not null
+        const startTime = (gameState.turnStartTime.toDate() as Date).getTime();
+        const endTime = Date.now();
+        const elapsedSeconds = Math.floor((endTime - startTime) / 1000);
+        remainingTime = Math.max(0, gameState.playerTimes[callerId] - elapsedSeconds);
+    }
 
     if (newCalledNumbers.length === ALL_NUMBERS.length) {
       await updateDoc(gameRef, {
