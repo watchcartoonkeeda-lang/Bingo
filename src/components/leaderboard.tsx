@@ -2,17 +2,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { firestore } from "@/lib/firebase";
+import { collection, query, orderBy, limit, onSnapshot, getDoc, doc } from "firebase/firestore";
+import { firestore, auth } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Award, Medal, Trophy } from "lucide-react";
+import { Award, Medal, Trophy, TrendingUp, Calendar, Sun } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { onAuthStateChanged, type User } from "firebase/auth";
 
 interface PlayerStat {
   id: string;
   displayName: string;
   photoURL: string | null;
-  wins: number;
+  score: number;
+  dailyWins?: number;
+  weeklyWins?: number;
+  monthlyWins?: number;
 }
 
 const getRankIcon = (rank: number) => {
@@ -32,28 +37,102 @@ const getRankIcon = (rank: number) => {
 export function Leaderboard() {
   const [leaderboard, setLeaderboard] = useState<PlayerStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [userStats, setUserStats] = useState<PlayerStat | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribeAuth();
+  }, []);
 
   useEffect(() => {
     const playersRef = collection(firestore, "players");
-    const q = query(playersRef, orderBy("wins", "desc"), limit(10));
+    const q = query(playersRef, orderBy("score", "desc"), limit(10));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const players: PlayerStat[] = [];
       querySnapshot.forEach((doc) => {
-        players.push({ id: doc.id, ...doc.data() } as PlayerStat);
+        const data = doc.data();
+        players.push({ 
+            id: doc.id, 
+            displayName: data.displayName || 'Player',
+            photoURL: data.photoURL,
+            score: data.score || 0,
+        });
       });
       setLeaderboard(players);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching leaderboard:", error);
+      toast({ variant: 'destructive', title: 'Could not load leaderboard' });
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
+  
+  useEffect(() => {
+    if (!user) {
+        setUserStats(null);
+        return;
+    };
+
+    const playerDocRef = doc(firestore, "players", user.uid);
+    const unsubscribe = onSnapshot(playerDocRef, (doc) => {
+        if(doc.exists()) {
+            const data = doc.data();
+            setUserStats({
+                id: doc.id,
+                displayName: data.displayName,
+                photoURL: data.photoURL,
+                score: data.score,
+                dailyWins: data.dailyWins,
+                weeklyWins: data.weeklyWins,
+                monthlyWins: data.monthlyWins,
+            })
+        }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <div className="w-full max-w-md mx-auto space-y-6">
+    {userStats && (
+        <Card className="bg-primary/5">
+            <CardHeader>
+                <CardTitle>Your Streaks</CardTitle>
+                <CardDescription>Your current win streaks for different periods.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                    <div className="flex items-center justify-center gap-2">
+                        <Sun className="h-5 w-5 text-yellow-500" />
+                        <h4 className="font-semibold">Daily</h4>
+                    </div>
+                    <p className="text-2xl font-bold">{userStats.dailyWins || 0}</p>
+                </div>
+                <div>
+                    <div className="flex items-center justify-center gap-2">
+                        <Calendar className="h-5 w-5 text-blue-500" />
+                        <h4 className="font-semibold">Weekly</h4>
+                    </div>
+                    <p className="text-2xl font-bold">{userStats.weeklyWins || 0}</p>
+                </div>
+                <div>
+                    <div className="flex items-center justify-center gap-2">
+                         <TrendingUp className="h-5 w-5 text-green-500" />
+                        <h4 className="font-semibold">Monthly</h4>
+                    </div>
+                    <p className="text-2xl font-bold">{userStats.monthlyWins || 0}</p>
+                </div>
+            </CardContent>
+        </Card>
+    )}
+    <Card>
       <CardHeader>
         <CardTitle>Top Players</CardTitle>
         <CardDescription>See who is leading the BingoBoardBlitz charts!</CardDescription>
@@ -82,12 +161,13 @@ export function Leaderboard() {
                     </Avatar>
                     <span className="font-semibold">{player.displayName}</span>
                 </div>
-                <div className="font-bold text-lg text-primary">{player.wins} wins</div>
+                <div className="font-bold text-lg text-primary">{player.score} pts</div>
               </li>
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

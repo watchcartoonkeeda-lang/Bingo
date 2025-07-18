@@ -13,18 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Confetti } from "./confetti";
 import { useToast } from "@/hooks/use-toast";
-import { Share2, History, Award } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "./ui/scroll-area";
+import { Share2 } from "lucide-react";
 
-const MAX_HISTORY = 5;
-
-type GameResult = {
-  result: "win" | "loss" | "draw";
-  opponent: string;
-  date: string;
-};
 
 interface GameOverDialogProps {
   isOpen: boolean;
@@ -39,51 +29,12 @@ export function GameOverDialog({
   isOpen,
   winnerName,
   isPlayerWinner,
-  onPlayAgain,
   onGoToLobby,
-  opponentName,
 }: GameOverDialogProps) {
   const { toast } = useToast();
-  const [winningStreak, setWinningStreak] = useState(0);
-  const [gameHistory, setGameHistory] = useState<GameResult[]>([]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Load from localStorage
-    const storedStreak = parseInt(localStorage.getItem("bingoWinningStreak") || "0", 10);
-    const storedHistory: GameResult[] = JSON.parse(localStorage.getItem("bingoGameHistory") || "[]");
-    
-    let currentStreak = storedStreak;
-    
-    // Update streak
-    if (isPlayerWinner) {
-      currentStreak++;
-    } else {
-      currentStreak = 0; // Reset on loss or draw
-    }
-    
-    // Update history
-    const newResult: GameResult = {
-      result: isPlayerWinner ? 'win' : (winnerName === 'DRAW' ? 'draw' : 'loss'),
-      opponent: opponentName,
-      date: new Date().toLocaleString()
-    };
-    const updatedHistory = [newResult, ...storedHistory].slice(0, MAX_HISTORY);
-
-    // Save to localStorage
-    localStorage.setItem("bingoWinningStreak", currentStreak.toString());
-    localStorage.setItem("bingoGameHistory", JSON.stringify(updatedHistory));
-    
-    // Update state
-    setWinningStreak(currentStreak);
-    setGameHistory(updatedHistory);
-
-  }, [isOpen, isPlayerWinner, winnerName, opponentName]);
-
 
   const handleShare = async () => {
-    const shareText = `I just won a game of BingoBoardBlitz with a winning streak of ${winningStreak}! Can you beat me?`;
+    const shareText = `I just won a game of BingoBoardBlitz! Can you beat me?`;
     const fallbackCopy = () => {
       navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
       toast({
@@ -121,10 +72,10 @@ export function GameOverDialog({
 
   const description =
     winnerName === "DRAW"
-      ? "An intense match! No winner this time."
+      ? "An intense match! No winner this time. Your score is unaffected."
       : isPlayerWinner
-      ? "Congratulations! Your strategic board setup paid off."
-      : "Better luck next time!";
+      ? "Congratulations! Your score has increased by 1 point."
+      : "Better luck next time! Your score has been reduced by 2 points.";
 
   return (
     <AlertDialog open={isOpen}>
@@ -138,43 +89,6 @@ export function GameOverDialog({
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
-
-        <div className="grid grid-cols-2 gap-4 my-4">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Winning Streak</CardTitle>
-              <Award className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{winningStreak}</div>
-              <p className="text-xs text-muted-foreground">
-                {isPlayerWinner ? '+1 this game' : 'Streak reset'}
-              </p>
-            </CardContent>
-          </Card>
-           <Card>
-            <CardHeader className="flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Game History</CardTitle>
-               <History className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-20">
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  {gameHistory.length > 0 ? (
-                    gameHistory.map((game, index) => (
-                      <li key={index} className="flex justify-between items-center text-xs">
-                        <span>{game.result === 'win' ? '🏆 Won' : game.result === 'loss' ? '💀 Lost' : '🤝 Draw'} vs {game.opponent}</span>
-                      </li>
-                    ))
-                  ) : (
-                    <p className="text-xs">Play some games to see your history.</p>
-                  )}
-                </ul>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
 
         <AlertDialogFooter className="mt-4 sm:flex-row sm:justify-center gap-2">
            {isPlayerWinner && (

@@ -19,7 +19,7 @@ import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { GameInstructions } from "@/components/game-instructions";
 import { SetupTimer } from "@/components/setup-timer";
-import { recordWin } from "@/lib/player-stats";
+import { recordGameResult } from "@/lib/player-stats";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -61,7 +61,7 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
-  const winRecordedRef = useRef(false);
+  const gameResultRecorded = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -102,12 +102,13 @@ export default function GamePage() {
         }
       }
 
-      if (gameData.status === 'finished' && gameData.winner && !winRecordedRef.current) {
-         const winnerPlayer = gameData.players[gameData.winner];
-         if (winnerPlayer && !winnerPlayer.isBot) {
-            recordWin(gameData.winner);
-            winRecordedRef.current = true;
-         }
+      if (gameData.status === 'finished' && gameData.winner && !gameResultRecorded.current && localPlayerId) {
+         const isWinner = gameData.winner === localPlayerId;
+         const isDraw = gameData.winner === 'DRAW';
+         
+         const result = isWinner ? 'win' : (isDraw ? 'draw' : 'loss');
+         recordGameResult(localPlayerId, result);
+         gameResultRecorded.current = true;
       }
 
       setGameState(gameData);
