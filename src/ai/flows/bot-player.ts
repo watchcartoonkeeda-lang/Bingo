@@ -43,7 +43,7 @@ const prompt = ai.definePrompt({
 
   Your Board: {{{playerBoard}}}
   Called Numbers: {{{calledNumbers}}}
-  Available Numbers: {{json (allNumbers.filter(n => !calledNumbers.includes(n)))}}
+  Available Numbers: {{json availableNumbers}}
   Winning Combinations: {{json WINNING_COMBINATIONS}}
 
   First, check if you have 5 or more winning lines based on your board and the called numbers. A line is complete if all 5 of its numbers are in the 'calledNumbers' list. If you have 5 or more completed lines, you MUST set 'shouldCallBingo' to true and can pick any available number as a formality.
@@ -60,9 +60,12 @@ const botPlayerFlow = ai.defineFlow(
     outputSchema: BotPlayerOutputSchema,
   },
   async (input) => {
+    const availableNumbers = input.allNumbers.filter(n => !input.calledNumbers.includes(n));
+    
     const {output} = await prompt({
         ...input,
-        // Pass WINNING_COMBINATIONS to the prompt context.
+        // @ts-ignore - Adding extra context for the prompt
+        availableNumbers,
         // @ts-ignore - Adding extra context for the prompt
         WINNING_COMBINATIONS,
     });
