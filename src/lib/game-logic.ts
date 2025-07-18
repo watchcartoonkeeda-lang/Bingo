@@ -70,6 +70,27 @@ function findWinningNumber(board: number[], combination: number[], calledNumbers
     return null;
 }
 
+// Helper to calculate the strategic value of a potential move
+function calculateMoveScore(board: number[], calledNumbers: number[], availableNumbers: number[]) {
+    const scores: { [key: number]: number } = {};
+
+    for (const num of availableNumbers) {
+        scores[num] = 0;
+        for (const combination of WINNING_COMBINATIONS) {
+            const lineNumbers = combination.map(index => board[index]);
+            if (lineNumbers.includes(num)) {
+                const calledInLine = lineNumbers.filter(n => calledNumbers.includes(n)).length;
+                // Give higher scores for lines that are closer to completion
+                // A line with 3 numbers called is better than a line with 1
+                if (calledInLine === 3) scores[num] += 4; // High priority - sets up a win
+                else if (calledInLine === 2) scores[num] += 2; // Medium priority
+                else if (calledInLine === 1) scores[num] += 1; // Low priority
+            }
+        }
+    }
+    return scores;
+}
+
 
 export function getBotMove(
     botBoard: number[],
@@ -93,43 +114,27 @@ export function getBotMove(
         }
     }
 
-    // -- Hard difficulty logic starts here --
+    // 3. Priority 2 (Hard Only): Find a move to block the player from winning
     if (difficulty === 'hard') {
-      // 3. Priority 2: Find a move to block the player from winning
       for (const combination of WINNING_COMBINATIONS) {
           const blockingMove = findWinningNumber(playerBoard, combination, calledNumbers);
           if (blockingMove && availableNumbers.includes(blockingMove)) {
               return { shouldCallBingo: false, chosenNumber: blockingMove };
           }
       }
-      
-      // 4. Priority 3: Make a strategic move to set up a future win
-      const lineCompletionScores: { [key: number]: number } = {};
-
-      for (const num of availableNumbers) {
-          lineCompletionScores[num] = 0;
-          // Check how many lines this number would help complete for the bot
-          for (const combination of WINNING_COMBINATIONS) {
-              const lineNumbers = combination.map(index => botBoard[index]);
-              if (lineNumbers.includes(num)) {
-                  // This move is on a potential winning line
-                  const calledInLine = lineNumbers.filter(n => calledNumbers.includes(n)).length;
-                  // Prioritize moves that get a line closer to completion
-                  lineCompletionScores[num] += (calledInLine + 1); // Add 1 because this move improves it
-              }
-          }
-      }
-      
-      if (Object.keys(lineCompletionScores).length > 0) {
-          const bestMove = Object.keys(lineCompletionScores).reduce((a, b) => lineCompletionScores[a] > lineCompletionScores[b] ? a : b);
-          if (bestMove) {
-              return { shouldCallBingo: false, chosenNumber: parseInt(bestMove, 10) };
-          }
-      }
     }
-    // -- Hard difficulty logic ends here --
     
-    // 5. Fallback (or Normal mode move): If no strategic moves, choose a random available number
+    // 4. Priority 3 (Normal & Hard): Make a strategic move
+    const moveScores = calculateMoveScore(botBoard, calledNumbers, availableNumbers);
+
+    if (Object.keys(moveScores).length > 0) {
+        const bestMove = Object.keys(moveScores).reduce((a, b) => moveScores[a] > moveScores[b] ? a : b);
+        if (bestMove && moveScores[parseInt(bestMove, 10)] > 0) { // Only make a strategic move if it has a score > 0
+            return { shouldCallBingo: false, chosenNumber: parseInt(bestMove, 10) };
+        }
+    }
+    
+    // 5. Fallback: If no strategic moves, choose a random available number
     if (availableNumbers.length > 0) {
         const randomIndex = Math.floor(Math.random() * availableNumbers.length);
         return { shouldCallBingo: false, chosenNumber: availableNumbers[randomIndex] };
