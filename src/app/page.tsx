@@ -72,17 +72,17 @@ export default function Home() {
       // onAuthStateChanged will handle setting the user and auth status
     } catch (error: any) {
       console.error("Google Sign-In Error:", error);
+       if (error.code === 'auth/popup-closed-by-user') {
+          setAuthStatus("unauthenticated");
+          return;
+      }
       toast({
         variant: "destructive",
         title: "Sign-In Failed",
         description: error.message || "Could not sign in with Google. Please try again.",
       });
-       if (error.code === 'auth/popup-closed-by-user') {
-          setAuthStatus("unauthenticated");
-      } else {
-          setAuthStatus("error");
-          setAuthError(error);
-      }
+      setAuthStatus("error");
+      setAuthError(error);
     }
   };
 
@@ -346,3 +346,5 @@ export default function Home() {
     </main>
   );
 }
+
+    
