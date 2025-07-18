@@ -172,6 +172,27 @@ export default function GamePage() {
       currentTurn: nextPlayerId,
     });
   };
+  
+  const handleBingoCall = async () => {
+    if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
+
+    const player = gameState.players[localPlayerId];
+    const playerWon = checkWin(player.board, gameState.calledNumbers);
+    const gameRef = doc(firestore, "games", gameId);
+
+    if (playerWon) {
+        await updateDoc(gameRef, {
+            status: 'finished',
+            winner: localPlayerId,
+        });
+    } else {
+        toast({
+            variant: "destructive",
+            title: "Not a Bingo!",
+            description: "You don't have a winning pattern yet. Keep playing!",
+        });
+    }
+  };
 
   const handleResetGame = async () => {
     if (!gameState) return;
@@ -207,35 +228,27 @@ export default function GamePage() {
           updateDoc(gameRef, { status: 'setup' });
       }
   }, [gameState, gameId]);
-
-
-  // Effect to check for winner
+  
+  // Effect to check for a draw
   useEffect(() => {
     if (!gameState || gameState.status !== 'playing' || gameState.winner) return;
 
-    let aWinnerWasFound = false;
-
-    for (const player of Object.values(gameState.players)) {
-      if(player.board.length === 25){
-        const playerWon = checkWin(player.board, gameState.calledNumbers);
-        if (playerWon) {
-            const gameRef = doc(firestore, "games", gameId);
-            updateDoc(gameRef, {
-                status: 'finished',
-                winner: player.id,
-            });
+    if (gameState.calledNumbers.length === 75) {
+       let aWinnerWasFound = false;
+       for (const player of Object.values(gameState.players)) {
+         if(player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)){
             aWinnerWasFound = true;
             break;
-        }
-      }
-    }
-
-    if (!aWinnerWasFound && gameState.calledNumbers.length === 75) {
-       const gameRef = doc(firestore, "games", gameId);
-       updateDoc(gameRef, {
-          status: 'finished',
-          winner: 'DRAW',
-       });
+         }
+       }
+       
+       if(!aWinnerWasFound) {
+         const gameRef = doc(firestore, "games", gameId);
+         updateDoc(gameRef, {
+            status: 'finished',
+            winner: 'DRAW',
+         });
+       }
     }
   }, [gameState, gameId]);
 
@@ -306,6 +319,7 @@ export default function GamePage() {
             playerBoard={localPlayer.board}
             calledNumbers={gameState.calledNumbers}
             onCallNumber={handleCallNumber}
+            onBingoCall={handleBingoCall}
             currentTurnId={gameState.currentTurn}
             localPlayerId={localPlayerId}
             otherPlayerName={otherPlayer?.name || 'Opponent'}

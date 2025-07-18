@@ -4,24 +4,24 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AIAdvisor } from "@/components/ai-advisor";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bot, User, Loader2 } from "lucide-react";
+import { Bot, User, Loader2, PartyPopper } from "lucide-react";
 
 interface GameBoardProps {
   playerBoard: (number | null)[];
   calledNumbers: number[];
   onCallNumber: (num: number) => void;
+  onBingoCall: () => void;
   currentTurnId: string | null;
   localPlayerId: string;
   otherPlayerName: string;
   allNumbers: number[];
 }
 
-export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTurnId, localPlayerId, otherPlayerName, allNumbers }: GameBoardProps) {
+export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers }: GameBoardProps) {
   const isPlayerTurn = currentTurnId === localPlayerId;
-  const availableNumbersToCall = allNumbers.filter(n => n !== null && !calledNumbers.includes(n));
-
+  
   const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}...`;
 
   return (
@@ -101,6 +101,10 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, currentTur
                 })}
               </div>
             </ScrollArea>
+             <Button onClick={onBingoCall} size="lg" className="w-full mt-4 bg-accent text-accent-foreground hover:bg-accent/90">
+                <PartyPopper className="mr-2 h-5 w-5" />
+                Bingo!
+            </Button>
           </CardContent>
         </Card>
 
