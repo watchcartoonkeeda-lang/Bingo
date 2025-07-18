@@ -14,6 +14,13 @@ type PlayerProfile = {
     photoURL: string | null;
 };
 
+export interface PlayerStreakData {
+  dailyWins: number;
+  weeklyWins: number;
+  monthlyWins: number;
+}
+
+
 type GameResultType = "win" | "loss" | "draw";
 
 // Create or update a player's profile information
@@ -82,7 +89,7 @@ export const recordGameResult = async (playerId: string, result: GameResultType)
                 updates.dailyWins = 1; // Reset or start new daily streak
             }
 
-            if (lastWinDate && isSameWeek(now, lastWinDate)) {
+            if (lastWinDate && isSameWeek(now, lastWinDate, { weekStartsOn: 1 /* Monday */ })) {
                 updates.weeklyWins = weeklyWins + 1;
             } else {
                 updates.weeklyWins = 1; // Reset or start new weekly streak

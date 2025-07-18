@@ -14,13 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Confetti } from "./confetti";
 import { useToast } from "@/hooks/use-toast";
 import { Share2 } from "lucide-react";
-
+import type { PlayerStreakData } from "@/lib/player-stats";
 
 interface GameOverDialogProps {
   isOpen: boolean;
   winnerName: string | null;
   isPlayerWinner: boolean;
   onGoToLobby: () => void;
+  playerStats: PlayerStreakData | null;
 }
 
 export function GameOverDialog({
@@ -28,13 +29,26 @@ export function GameOverDialog({
   winnerName,
   isPlayerWinner,
   onGoToLobby,
+  playerStats,
 }: GameOverDialogProps) {
   const { toast } = useToast();
 
   const handleShare = async () => {
-    const shareText = `I just won a game of BingoBoardBlitz! Can you beat me?`;
+    let shareText = "I just won a game of BingoBoardBlitz! Can you beat me?";
+
+    if (playerStats) {
+      const { monthlyWins, weeklyWins, dailyWins } = playerStats;
+      if (monthlyWins > 1) {
+        shareText = `I just won at BingoBoardBlitz and I'm on a ${monthlyWins}-month winning streak! Can you beat me?`;
+      } else if (weeklyWins > 1) {
+        shareText = `I just won at BingoBoardBlitz and I'm on a ${weeklyWins}-week winning streak! Can you beat me?`;
+      } else if (dailyWins > 1) {
+        shareText = `I just won at BingoBoardBlitz and I'm on a ${dailyWins}-day winning streak! Can you beat me?`;
+      }
+    }
+    
     const fallbackCopy = () => {
-      navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
+      navigator.clipboard.writeText(`${shareText} Play here: ${window.location.origin}`);
       toast({
         title: "Link Copied!",
         description: "Your victory message has been copied to the clipboard.",
@@ -46,17 +60,15 @@ export function GameOverDialog({
         await navigator.share({
           title: "I Won at BingoBoardBlitz!",
           text: shareText,
-          url: window.location.href,
+          url: window.location.origin,
         });
       } catch (error) {
-         // Fallback to copying the link if the share API fails for any reason.
          if (error instanceof Error && error.name !== 'AbortError') {
             console.error("Could not use Web Share API, falling back to clipboard.", error);
          }
          fallbackCopy();
       }
     } else {
-      // Fallback for browsers that don't support the Web Share API
       fallbackCopy();
     }
   };

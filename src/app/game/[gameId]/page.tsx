@@ -19,7 +19,7 @@ import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
 import { GameInstructions } from "@/components/game-instructions";
 import { SetupTimer } from "@/components/setup-timer";
-import { recordGameResult } from "@/lib/player-stats";
+import { recordGameResult, type PlayerStreakData } from "@/lib/player-stats";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -67,6 +67,7 @@ export default function GamePage() {
   const prevCompletedLines = useRef(0);
   const gameResultRecorded = useRef(false);
   const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [playerStats, setPlayerStats] = useState<PlayerStreakData | null>(null);
 
   const localPlayer = gameState?.players?.[localPlayerId || ''];
   const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
@@ -105,6 +106,18 @@ export default function GamePage() {
       }
   };
 
+  const handleConfirmBoard = useCallback(async (boardToConfirm: (number | null)[]) => {
+    const isBoardSetupComplete = boardToConfirm.every((cell) => cell !== null);
+    if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
+
+    const gameRef = doc(firestore, "games", gameId);
+    
+    await updateDoc(gameRef, {
+      [`players.${localPlayerId}.board`]: boardToConfirm,
+      [`players.${localPlayerId}.isBoardReady`]: true,
+    });
+  }, [gameId, localPlayerId, gameState]);
+
   const handleCallNumber = useCallback(async (num: number, callerId: string) => {
     if (!gameState || gameState.calledNumbers.includes(num)) return;
     
@@ -141,17 +154,46 @@ export default function GamePage() {
     }
   }, [gameState, gameId]);
 
-  const handleConfirmBoard = useCallback(async (boardToConfirm: (number | null)[]) => {
-    const isBoardSetupComplete = boardToConfirm.every((cell) => cell !== null);
-    if (!localPlayerId || !isBoardSetupComplete || !gameState) return;
+  const handleBingoCall = async () => {
+    if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
 
+    const player = gameState.players[localPlayerId];
+    const playerWon = checkWin(player.board, gameState.calledNumbers);
     const gameRef = doc(firestore, "games", gameId);
+
+    if (playerWon) {
+        await updateDoc(gameRef, {
+            status: 'finished',
+            winner: localPlayerId,
+        });
+    } else {
+        toast({
+            variant: "destructive",
+            title: "Not a Bingo!",
+            description: `You need ${LINES_TO_WIN} completed lines to win. Keep playing!`,
+        });
+    }
+  };
+
+  const handleRandomizeBoard = useCallback(() => {
+    const shuffled = [...ALL_NUMBERS].sort(() => 0.5 - Math.random());
+    setPlayerBoard(shuffled.slice(0, 25));
+  }, []);
+
+  const handleStartGame = async () => {
+    if (!gameState || localPlayerId !== gameState.hostId) return;
+
+    const playerCount = Object.values(gameState.players).length;
+    if (playerCount < 2 && !gameState.isBotGame) {
+        toast({ variant: 'destructive', title: "Not enough players!", description: "You need at least two players to start."});
+        return;
+    }
     
+    const gameRef = doc(firestore, "games", gameId);
     await updateDoc(gameRef, {
-      [`players.${localPlayerId}.board`]: boardToConfirm,
-      [`players.${localPlayerId}.isBoardReady`]: true,
+      status: 'setup',
     });
-  }, [gameId, localPlayerId, gameState]);
+  }
 
   const handleTimerEnd = useCallback(() => {
     if (localPlayer && !localPlayer.isBoardReady) {
@@ -192,7 +234,8 @@ export default function GamePage() {
       }
       
       const gameData = docSnap.data() as GameState;
-      
+      setGameState(gameData);
+
       // Auto-join the user if they are authenticated but not yet in the player list
       if (user.uid && !gameData.players[user.uid] && gameData.status === 'waiting') {
         const playerCount = Object.keys(gameData.players).length;
@@ -202,20 +245,30 @@ export default function GamePage() {
       }
 
       if (gameData.status === 'finished' && gameData.winner && !gameResultRecorded.current && localPlayerId) {
+        gameResultRecorded.current = true; // Mark as recorded immediately to prevent re-triggers
+
         const didIWin = gameData.winner === localPlayerId;
         const didILose = !didIWin && gameData.winner !== 'DRAW' && Object.keys(gameData.players).includes(localPlayerId);
 
         if (didIWin) {
           await recordGameResult(localPlayerId, 'win');
+          const playerDocRef = doc(firestore, "players", localPlayerId);
+          const playerDoc = await getDoc(playerDocRef);
+          if (playerDoc.exists()) {
+            const data = playerDoc.data();
+            setPlayerStats({
+              dailyWins: data.dailyWins || 0,
+              weeklyWins: data.weeklyWins || 0,
+              monthlyWins: data.monthlyWins || 0,
+            });
+          }
         } else if (didILose) {
           await recordGameResult(localPlayerId, 'loss');
         } else if (gameData.winner === 'DRAW') {
           await recordGameResult(localPlayerId, 'draw');
         }
-        gameResultRecorded.current = true;
       }
 
-      setGameState(gameData);
       setIsLoading(false);
 
     }, (error) => {
@@ -316,15 +369,15 @@ export default function GamePage() {
     // Human Player's Turn
     if (currentTurn === localPlayerId && turnStartTime && typeof turnStartTime.toDate === 'function') {
         const handleTimeout = () => {
-            if (!gameState) return; // Game state might have changed
-            const currentGameState = gameState; // Capture state at timeout creation
+            const availableNumbers = ALL_NUMBERS.filter(n => !gameState.calledNumbers.includes(n));
+            const randomMove = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+            
             toast({
                 variant: 'destructive',
                 title: "Time's up!",
-                description: 'A random number was called for you.',
+                description: `A random number (${randomMove}) was called for you.`,
             });
-            const availableNumbers = ALL_NUMBERS.filter(n => !currentGameState.calledNumbers.includes(n));
-            const randomMove = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+            
             handleCallNumber(randomMove, localPlayerId);
         };
         
@@ -383,46 +436,6 @@ export default function GamePage() {
     });
   };
   
-  const handleRandomizeBoard = useCallback(() => {
-    const shuffled = [...ALL_NUMBERS].sort(() => 0.5 - Math.random());
-    setPlayerBoard(shuffled.slice(0, 25));
-  }, []);
-
-  const handleStartGame = async () => {
-    if (!gameState || localPlayerId !== gameState.hostId) return;
-
-    const playerCount = Object.values(gameState.players).length;
-    if (playerCount < 2 && !gameState.isBotGame) {
-        toast({ variant: 'destructive', title: "Not enough players!", description: "You need at least two players to start."});
-        return;
-    }
-    
-    const gameRef = doc(firestore, "games", gameId);
-    await updateDoc(gameRef, {
-      status: 'setup',
-    });
-  }
-  
-  const handleBingoCall = async () => {
-    if (!gameState || !localPlayerId || gameState.status !== 'playing' || !gameState.players[localPlayerId]) return;
-
-    const player = gameState.players[localPlayerId];
-    const playerWon = checkWin(player.board, gameState.calledNumbers);
-    const gameRef = doc(firestore, "games", gameId);
-
-    if (playerWon) {
-        await updateDoc(gameRef, {
-            status: 'finished',
-            winner: localPlayerId,
-        });
-    } else {
-        toast({
-            variant: "destructive",
-            title: "Not a Bingo!",
-            description: `You need ${LINES_TO_WIN} completed lines to win. Keep playing!`,
-        });
-    }
-  };
 
   if (isLoading || !gameState || !localPlayerId || !user) {
     return (
@@ -508,6 +521,7 @@ export default function GamePage() {
                 isOpen={true}
                 winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? null : winnerPlayer?.name || 'Opponent')}
                 isPlayerWinner={gameState.winner === localPlayerId}
+                playerStats={playerStats}
                 onGoToLobby={() => router.push('/')}
             />
         );
@@ -536,5 +550,3 @@ export default function GamePage() {
     </main>
   );
 }
-
-    
