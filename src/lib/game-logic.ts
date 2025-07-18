@@ -75,7 +75,8 @@ export function getBotMove(
     botBoard: number[],
     playerBoard: number[],
     calledNumbers: number[],
-    allNumbers: number[]
+    allNumbers: number[],
+    difficulty: 'normal' | 'hard'
 ): { shouldCallBingo: boolean; chosenNumber: number | null } {
     // 1. Check if the bot has won
     if (checkWin(botBoard, calledNumbers)) {
@@ -92,39 +93,43 @@ export function getBotMove(
         }
     }
 
-    // 3. Priority 2: Find a move to block the player from winning
-    for (const combination of WINNING_COMBINATIONS) {
-        const blockingMove = findWinningNumber(playerBoard, combination, calledNumbers);
-        if (blockingMove && availableNumbers.includes(blockingMove)) {
-            return { shouldCallBingo: false, chosenNumber: blockingMove };
-        }
-    }
-    
-    // 4. Priority 3: Make a strategic move to set up a future win
-    const lineCompletionScores: { [key: number]: number } = {};
+    // -- Hard difficulty logic starts here --
+    if (difficulty === 'hard') {
+      // 3. Priority 2: Find a move to block the player from winning
+      for (const combination of WINNING_COMBINATIONS) {
+          const blockingMove = findWinningNumber(playerBoard, combination, calledNumbers);
+          if (blockingMove && availableNumbers.includes(blockingMove)) {
+              return { shouldCallBingo: false, chosenNumber: blockingMove };
+          }
+      }
+      
+      // 4. Priority 3: Make a strategic move to set up a future win
+      const lineCompletionScores: { [key: number]: number } = {};
 
-    for (const num of availableNumbers) {
-        lineCompletionScores[num] = 0;
-        // Check how many lines this number would help complete for the bot
-        for (const combination of WINNING_COMBINATIONS) {
-            const lineNumbers = combination.map(index => botBoard[index]);
-            if (lineNumbers.includes(num)) {
-                // This move is on a potential winning line
-                const calledInLine = lineNumbers.filter(n => calledNumbers.includes(n)).length;
-                // Prioritize moves that get a line closer to completion
-                lineCompletionScores[num] += (calledInLine + 1); // Add 1 because this move improves it
-            }
-        }
+      for (const num of availableNumbers) {
+          lineCompletionScores[num] = 0;
+          // Check how many lines this number would help complete for the bot
+          for (const combination of WINNING_COMBINATIONS) {
+              const lineNumbers = combination.map(index => botBoard[index]);
+              if (lineNumbers.includes(num)) {
+                  // This move is on a potential winning line
+                  const calledInLine = lineNumbers.filter(n => calledNumbers.includes(n)).length;
+                  // Prioritize moves that get a line closer to completion
+                  lineCompletionScores[num] += (calledInLine + 1); // Add 1 because this move improves it
+              }
+          }
+      }
+      
+      if (Object.keys(lineCompletionScores).length > 0) {
+          const bestMove = Object.keys(lineCompletionScores).reduce((a, b) => lineCompletionScores[a] > lineCompletionScores[b] ? a : b);
+          if (bestMove) {
+              return { shouldCallBingo: false, chosenNumber: parseInt(bestMove, 10) };
+          }
+      }
     }
+    // -- Hard difficulty logic ends here --
     
-    if (Object.keys(lineCompletionScores).length > 0) {
-        const bestMove = Object.keys(lineCompletionScores).reduce((a, b) => lineCompletionScores[a] > lineCompletionScores[b] ? a : b);
-        if (bestMove) {
-            return { shouldCallBingo: false, chosenNumber: parseInt(bestMove, 10) };
-        }
-    }
-    
-    // 5. Fallback: If no strategic moves, choose a random available number
+    // 5. Fallback (or Normal mode move): If no strategic moves, choose a random available number
     if (availableNumbers.length > 0) {
         const randomIndex = Math.floor(Math.random() * availableNumbers.length);
         return { shouldCallBingo: false, chosenNumber: availableNumbers[randomIndex] };

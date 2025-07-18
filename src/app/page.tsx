@@ -8,7 +8,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { firestore, authReadyPromise } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
-import { Loader2, AlertTriangle, User, Bot } from "lucide-react";
+import { Loader2, AlertTriangle, User, Bot, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -21,10 +21,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-
+type GameMode = 'friends' | 'bot';
+type BotDifficulty = 'normal' | 'hard';
 type AuthStatus = "loading" | "authenticated" | "error";
 
 export default function Home() {
@@ -33,7 +40,7 @@ export default function Home() {
   const [authError, setAuthError] = useState<any>(null);
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [playerName, setPlayerName] = useState("");
-  const gameModeToCreate = useRef<'bot' | 'friends' | null>(null);
+  const gameInfoToCreate = useRef<{ mode: GameMode; difficulty?: BotDifficulty } | null>(null);
 
   const router = useRouter();
   const { toast } = useToast();
@@ -47,13 +54,13 @@ export default function Home() {
       });
   }, []);
 
-  const handleCreateGameRequest = (mode: 'bot' | 'friends') => {
-    gameModeToCreate.current = mode;
+  const handleCreateGameRequest = (mode: GameMode, difficulty?: BotDifficulty) => {
+    gameInfoToCreate.current = { mode, difficulty };
     setShowNameDialog(true);
   }
 
   const createNewGame = async () => {
-    if (!playerName.trim() || !gameModeToCreate.current) {
+    if (!playerName.trim() || !gameInfoToCreate.current) {
         toast({
             variant: "destructive",
             title: "Player name is required.",
@@ -64,7 +71,8 @@ export default function Home() {
     setIsGameLoading(true);
     setShowNameDialog(false);
     
-    const isBotGame = gameModeToCreate.current === 'bot';
+    const { mode, difficulty } = gameInfoToCreate.current;
+    const isBotGame = mode === 'bot';
 
     try {
       let localPlayerId = sessionStorage.getItem("playerId");
@@ -92,9 +100,9 @@ export default function Home() {
         const botId = 'bot_player_1';
         players[botId] = {
            id: botId,
-           name: 'BingoBot',
+           name: `BingoBot (${difficulty})`,
            board: [],
-           isBoardReady: false, // Bot will be ready after setup
+           isBoardReady: false, 
            isBot: true,
         };
       }
@@ -109,6 +117,7 @@ export default function Home() {
         winner: null,
         maxPlayers: isBotGame ? 2 : 4,
         isBotGame: isBotGame,
+        botDifficulty: difficulty || null,
         hostId: localPlayerId,
       });
       
@@ -199,13 +208,27 @@ service cloud.firestore {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
-            {isGameLoading && gameModeToCreate.current === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
+            {isGameLoading && gameInfoToCreate.current?.mode === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
             Play with Friends
           </Button>
-          <Button onClick={() => handleCreateGameRequest('bot')} disabled={isGameLoading} size="lg" variant="secondary" className="w-full sm:w-auto">
-            {isGameLoading && gameModeToCreate.current === 'bot' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2"/>}
-            Play with Bot
-          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
+                <Bot className="mr-2"/>
+                Play with Bot
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'normal')}>
+                vs Normal Bot
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'hard')}>
+                vs Hard Bot
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     );

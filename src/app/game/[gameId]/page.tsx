@@ -21,6 +21,7 @@ import { SetupTimer } from "@/components/setup-timer";
 
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
+type BotDifficulty = 'normal' | 'hard';
 type Player = {
   id: string;
   name: string;
@@ -37,6 +38,7 @@ type GameState = {
   winner: string | null;
   maxPlayers: number;
   isBotGame: boolean;
+  botDifficulty: BotDifficulty | null;
   hostId: string | null;
 };
 
@@ -154,7 +156,13 @@ export default function GamePage() {
         const handleBotTurn = async () => {
             await new Promise(resolve => setTimeout(resolve, 1500)); // Bot "thinks"
             
-            const botMove = getBotMove(botPlayer.board, localPlayer.board, gameState.calledNumbers, ALL_NUMBERS);
+            const botMove = getBotMove(
+                botPlayer.board as number[],
+                localPlayer.board as number[],
+                gameState.calledNumbers,
+                ALL_NUMBERS,
+                gameState.botDifficulty || 'normal'
+            );
   
             if (botMove.shouldCallBingo) {
                 const gameRef = doc(firestore, "games", gameId);
