@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, arrayUnion, getDoc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayUnion, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
 import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
@@ -12,7 +12,7 @@ import { AppLogo } from "@/components/icons";
 import { checkWin } from "@/lib/game-logic";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User, Users, Share2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Lobby } from "@/components/lobby";
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
@@ -32,6 +32,8 @@ type GameState = {
 };
 
 const INITIAL_BOARD = Array(25).fill(null);
+const ALL_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
+
 
 export default function GamePage() {
   const params = useParams();
@@ -97,7 +99,9 @@ export default function GamePage() {
       });
     };
 
-    joinGame();
+    if (gameState.status === 'waiting') {
+        joinGame();
+    }
   }, [localPlayerId, gameState, gameId]);
 
 
@@ -121,7 +125,6 @@ export default function GamePage() {
   };
   
   const handleRandomizeBoard = () => {
-    const ALL_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
     const shuffled = [...ALL_NUMBERS].sort(() => 0.5 - Math.random());
     setPlayerBoard(shuffled.slice(0, 25));
   };
@@ -144,47 +147,55 @@ export default function GamePage() {
     const players = Object.values(gameState.players);
     if (players.length === 2 && players.every(p => p.isBoardReady)) {
       const gameRef = doc(firestore, "games", gameId);
+      // Randomly select who starts
+      const startingPlayerId = players[Math.floor(Math.random() * players.length)].id;
       updateDoc(gameRef, {
         status: 'playing',
-        currentTurn: players[0].id // First player starts
+        currentTurn: startingPlayerId
       });
     }
   }, [gameState, gameId]);
 
 
   const handleCallNumber = async (num: number) => {
-    if (!gameState || gameState.currentTurn !== localPlayerId || gameState.calledNumbers.includes(num)) return;
+    if (!gameState || !localPlayerId || gameState.currentTurn !== localPlayerId || gameState.calledNumbers.includes(num)) return;
     
     const gameRef = doc(firestore, "games", gameId);
     
     // Determine next player
     const playerIds = Object.keys(gameState.players);
-    const currentPlayerIndex = playerIds.indexOf(localPlayerId!);
+    const currentPlayerIndex = playerIds.indexOf(localPlayerId);
     const nextPlayerId = playerIds[(currentPlayerIndex + 1) % playerIds.length];
 
     await updateDoc(gameRef, {
       calledNumbers: arrayUnion(num),
       currentTurn: nextPlayerId,
-      lastActivity: serverTimestamp(),
     });
   };
 
   const handleResetGame = async () => {
+    if (!gameState) return;
     const gameRef = doc(firestore, "games", gameId);
-    const initialNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+    const playerIds = Object.keys(gameState.players);
+    
+    const freshPlayers: {[key: string]: Player} = {};
+    playerIds.forEach(id => {
+        freshPlayers[id] = {
+            ...gameState.players[id],
+            board: [],
+            isBoardReady: false,
+        };
+    });
 
     await updateDoc(gameRef, {
-      status: "waiting",
+      status: "setup",
       calledNumbers: [],
-      availableNumbers: initialNumbers,
       currentTurn: null,
       winner: null,
-      players: {}, // Reset players
-      lastActivity: serverTimestamp(),
+      players: freshPlayers,
     });
-    sessionStorage.removeItem("playerId");
-    setLocalPlayerId(null); // Force re-join
-    router.push("/");
+
+    setPlayerBoard(INITIAL_BOARD);
   };
   
   // Effect to check for game start
@@ -200,20 +211,22 @@ export default function GamePage() {
 
   // Effect to check for winner
   useEffect(() => {
-    if (!gameState || gameState.status !== 'playing') return;
+    if (!gameState || gameState.status !== 'playing' || gameState.winner) return;
 
     let aWinnerWasFound = false;
 
     for (const player of Object.values(gameState.players)) {
-      const playerWon = checkWin(player.board, gameState.calledNumbers);
-      if (playerWon) {
-        const gameRef = doc(firestore, "games", gameId);
-        updateDoc(gameRef, {
-          status: 'finished',
-          winner: player.id,
-        });
-        aWinnerWasFound = true;
-        break;
+      if(player.board.length === 25){
+        const playerWon = checkWin(player.board, gameState.calledNumbers);
+        if (playerWon) {
+            const gameRef = doc(firestore, "games", gameId);
+            updateDoc(gameRef, {
+                status: 'finished',
+                winner: player.id,
+            });
+            aWinnerWasFound = true;
+            break;
+        }
       }
     }
 
@@ -238,6 +251,7 @@ export default function GamePage() {
   
   const localPlayer = gameState.players[localPlayerId];
   const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
+  const otherPlayer = Object.values(gameState.players).find(p => p.id !== localPlayerId);
 
   const renderContent = () => {
     switch (gameState.status) {
@@ -249,7 +263,12 @@ export default function GamePage() {
             return (
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
-                    <p className="text-muted-foreground">Waiting for the other player to set up their board...</p>
+                    <p className="text-muted-foreground">
+                        {otherPlayer && otherPlayer.isBoardReady 
+                          ? 'Starting game...' 
+                          : `Waiting for ${otherPlayer?.name || 'the other player'} to set up their board...`
+                        }
+                    </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                 </div>
             );
@@ -260,7 +279,7 @@ export default function GamePage() {
               board={playerBoard}
               onPlaceNumber={handlePlaceNumber}
               onRandomize={handleRandomizeBoard}
-              numbersToUse={Array.from({ length: 75 }, (_, i) => i + 1)}
+              numbersToUse={ALL_NUMBERS}
             />
             <div className="mt-6 flex gap-4">
               <Button onClick={handleRandomizeBoard} variant="outline">
@@ -274,14 +293,23 @@ export default function GamePage() {
         );
 
       case "playing":
+        if (!localPlayer || localPlayer.board.length === 0) {
+           return (
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold mb-4">Error</h2>
+                    <p className="text-muted-foreground">Could not load your board. Please try refreshing.</p>
+                </div>
+           )
+        }
         return (
           <GameBoard
             playerBoard={localPlayer.board}
             calledNumbers={gameState.calledNumbers}
             onCallNumber={handleCallNumber}
-            currentTurn={gameState.currentTurn === localPlayerId ? 'PLAYER' : 'AI'}
-            isAiThinking={gameState.currentTurn !== localPlayerId}
-            numbersToCall={localPlayer.board}
+            currentTurnId={gameState.currentTurn}
+            localPlayerId={localPlayerId}
+            otherPlayerName={otherPlayer?.name || 'Opponent'}
+            allNumbers={ALL_NUMBERS}
           />
         );
       
@@ -289,7 +317,8 @@ export default function GamePage() {
         return (
             <GameOverDialog
                 isOpen={true}
-                winner={gameState.winner === localPlayerId ? 'PLAYER' : (gameState.winner === 'DRAW' ? 'DRAW' : 'AI')}
+                winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? 'DRAW' : otherPlayer?.name || 'Opponent')}
+                isPlayerWinner={gameState.winner === localPlayerId}
                 onPlayAgain={handleResetGame}
             />
         );

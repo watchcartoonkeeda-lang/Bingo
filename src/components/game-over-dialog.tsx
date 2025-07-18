@@ -1,3 +1,4 @@
+// src/components/game-over-dialog.tsx
 "use client";
 
 import {
@@ -7,39 +8,37 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Confetti } from "./confetti";
 
 interface GameOverDialogProps {
   isOpen: boolean;
-  winner: "PLAYER" | "AI" | "DRAW" | null;
+  winnerName: string | null;
+  isPlayerWinner: boolean;
   onPlayAgain: () => void;
 }
 
-export function GameOverDialog({ isOpen, winner, onPlayAgain }: GameOverDialogProps) {
+export function GameOverDialog({ isOpen, winnerName, isPlayerWinner, onPlayAgain }: GameOverDialogProps) {
   const title =
-    winner === "PLAYER"
-      ? "🎉 You Win! 🎉"
-      : winner === "AI"
-      ? "😢 You Lose 😢"
-      : "🤝 It's a Draw! 🤝";
+    winnerName === 'DRAW'
+      ? "🤝 It's a Draw! 🤝"
+      : `${winnerName} Won!`;
 
   const description =
-    winner === "PLAYER"
+    winnerName === 'DRAW'
+      ? "An intense match! No winner this time."
+      : isPlayerWinner
       ? "Congratulations! Your strategic board setup paid off."
-      : winner === "AI"
-      ? "The AI bested you this time. Better luck next round!"
-      : "An intense match! No winner this time.";
+      : "Better luck next time!";
 
   return (
     <AlertDialog open={isOpen}>
       <AlertDialogContent className="overflow-hidden">
-        {winner === "PLAYER" && <Confetti />}
+        {isPlayerWinner && <Confetti />}
         <AlertDialogHeader>
           <AlertDialogTitle className="text-3xl font-bold text-center">
-            {title}
+             {isPlayerWinner && '🎉'} {title} {isPlayerWinner && '🎉'}
           </AlertDialogTitle>
           <AlertDialogDescription className="text-center text-lg">
             {description}
