@@ -34,7 +34,7 @@ type GameState = {
 };
 
 const INITIAL_BOARD = Array(25).fill(null);
-const ALL_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
+const ALL_NUMBERS = Array.from({ length: 25 }, (_, i) => i + 1);
 
 
 export default function GamePage() {
@@ -193,19 +193,19 @@ export default function GamePage() {
         await updateDoc(gameRef, {
             status: 'finished',
             winner: localPlayerId,
-            calledNumbers: newCalledNumbers, // record the final number
+            calledNumbers: arrayUnion(num)
         });
-    } else if (newCalledNumbers.length === 75) {
+    } else if (newCalledNumbers.length === 25) {
         // Check for draw
         await updateDoc(gameRef, {
             status: 'finished',
             winner: 'DRAW',
-            calledNumbers: newCalledNumbers,
+            calledNumbers: arrayUnion(num)
         });
     }
     else {
         await updateDoc(gameRef, {
-            calledNumbers: newCalledNumbers,
+            calledNumbers: arrayUnion(num),
             currentTurn: nextPlayerId,
         });
     }

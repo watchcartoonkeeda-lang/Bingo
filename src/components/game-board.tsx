@@ -119,7 +119,7 @@ export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCal
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Called Numbers</CardTitle>
-            <CardDescription>Total: {calledNumbers.length} / 75</CardDescription>
+            <CardDescription>Total: {calledNumbers.length} / 25</CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-40">
