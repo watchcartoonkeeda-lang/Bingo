@@ -50,6 +50,7 @@ export default function Home() {
   const { toast } = useToast();
 
   useEffect(() => {
+    setAuthStatus("loading"); // Set loading state on initial mount
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -74,7 +75,6 @@ export default function Home() {
   }, []);
 
   const handleSignIn = async () => {
-    setAuthStatus("loading");
     try {
       await signInWithGoogle();
       // onAuthStateChanged will handle setting the user and auth status
