@@ -42,6 +42,10 @@ export default function Home() {
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
+        players: {},
+        calledNumbers: [],
+        currentTurn: null,
+        winner: null,
       });
       
       router.push(`/game/${gameId}`);
