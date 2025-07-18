@@ -95,8 +95,8 @@ export default function GamePage() {
 
     // Effect to check for bingo readiness and notify the player
   useEffect(() => {
-    if (!localPlayer) return;
-    if (gameState?.status === 'playing' && localPlayer?.board.length > 0) {
+    if (!localPlayer || !gameState) return;
+    if (gameState.status === 'playing' && localPlayer.board.length > 0) {
       const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
       if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
         toast({
@@ -108,11 +108,11 @@ export default function GamePage() {
       }
       prevCompletedLines.current = currentCompletedLines;
     }
-  }, [gameState?.calledNumbers, gameState?.status, localPlayer, toast]);
+  }, [gameState?.calledNumbers, gameState, localPlayer, toast]);
 
   // Effect for Bot's turn
   useEffect(() => {
-    if (gameState?.status !== 'playing' || !gameState.isBotGame) return;
+    if (!gameState || gameState.status !== 'playing' || !gameState.isBotGame) return;
 
     const botPlayer = Object.values(gameState.players).find(p => p.isBot);
     if (botPlayer && gameState.currentTurn === botPlayer.id) {
@@ -137,6 +137,8 @@ export default function GamePage() {
                 } else {
                     // This case should ideally not happen if bot logic is correct
                     console.log("Bot called Bingo but didn't win. What a silly bot.");
+                     // Bot calls a number instead of ending game on false bingo
+                    await handleCallNumber(botResult.chosenNumber, botPlayer.id);
                 }
             } else {
                 // Bot calls a number
@@ -145,7 +147,8 @@ export default function GamePage() {
         };
         handleBotTurn();
     }
-  }, [gameState, gameId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState?.status, gameState?.currentTurn, gameId]);
 
 
   const handleJoinGame = async () => {
@@ -243,7 +246,7 @@ export default function GamePage() {
           toast({ variant: 'destructive', title: "Not all players are ready!"});
           return;
       }
-
+      
       const gameRef = doc(firestore, "games", gameId);
       const playerIds = Object.keys(gameState.players);
       const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
@@ -446,3 +449,5 @@ export default function GamePage() {
     </main>
   );
 }
+
+    
