@@ -2,7 +2,7 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getFirestore, type Firestore } from "firebase/firestore";
-import { getAuth, signInAnonymously, onAuthStateChanged, type Auth } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged, type Auth, type User } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,10 +14,12 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// A robust way to initialize Firebase in a Next.js environment
 let app: FirebaseApp;
 let auth: Auth;
 let firestore: Firestore;
+
+// This promise will resolve with the user or reject with an error.
+let authReadyPromise: Promise<User | null>;
 
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
@@ -28,14 +30,28 @@ if (getApps().length === 0) {
 auth = getAuth(app);
 firestore = getFirestore(app);
 
-// Sign in anonymously to satisfy security rules
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    signInAnonymously(auth).catch((error) => {
-      console.error("Anonymous sign-in failed:", error);
-    });
-  }
+authReadyPromise = new Promise((resolve, reject) => {
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      resolve(user);
+    } else {
+      signInAnonymously(auth)
+        .then(userCredential => resolve(userCredential.user))
+        .catch(error => {
+          // This specific error is common during setup.
+          if (error.code === 'auth/configuration-not-found') {
+             console.error("Firebase Anonymous Auth not enabled. See instructions in the UI.");
+          } else {
+            console.error("Anonymous sign-in failed:", error);
+          }
+          reject(error);
+        });
+    }
+  }, (error) => {
+    // This handles errors during the initial auth state check.
+    reject(error);
+  });
 });
 
 
-export { app, auth, firestore };
+export { app, auth, firestore, authReadyPromise };
