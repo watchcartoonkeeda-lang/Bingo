@@ -191,6 +191,56 @@ export default function Home() {
       setIsGameLoading(false);
     }
   };
+  
+  const renderAuthError = () => {
+    const isUnauthorizedDomain = authError?.code === 'auth/unauthorized-domain';
+    return (
+      <Card className="w-full max-w-2xl bg-destructive/10 border-destructive">
+        <CardHeader className="flex-row items-center gap-4">
+          <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
+          <div className="flex-1">
+            <CardTitle className="text-destructive">Project Configuration Needed</CardTitle>
+            <CardDescription className="text-destructive/80">
+              Your app is failing to connect to Firebase. This is usually due to a misconfiguration.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {isUnauthorizedDomain && (
+            <div className="space-y-2 p-4 rounded-md bg-destructive/20">
+              <h3 className="font-semibold">Error: Unauthorized Domain</h3>
+              <p className="text-sm text-destructive/80">
+                Your Firebase project is not configured to allow sign-ins from `localhost`.
+              </p>
+              <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
+                <li>Navigate to <span className="font-bold">Authentication &gt; Settings</span> tab.</li>
+                <li>Under <span className="font-bold">Authorized domains</span>, click <span className="font-bold">Add domain</span>.</li>
+                <li>Enter <span className="font-bold">`localhost`</span> and click Add.</li>
+              </ol>
+            </div>
+          )}
+          <div className="space-y-2">
+            <h3 className="font-semibold">Check: Is Google Sign-In Enabled?</h3>
+            <p className="text-sm text-destructive/80">This app uses Google Sign-In. You must enable it in your Firebase project.</p>
+             <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                <li>Go to <span className="font-bold">Authentication &gt; Sign-in method</span>.</li>
+                <li>Find <span className="font-bold">"Google"</span> and ensure it's enabled.</li>
+            </ol>
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-semibold">Check: Firestore Security Rules</h3>
+            <p className="text-sm text-destructive/80">Your database needs a rule to allow authenticated users to create games.</p>
+             <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                <li>Go to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
+                <li>Ensure the rules allow writes for authenticated users (see README).</li>
+            </ol>
+          </div>
+           <p className="text-sm font-semibold text-center pt-4">After fixing the configuration, refresh this page.</p>
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderContent = () => {
     switch (authStatus) {
@@ -203,41 +253,7 @@ export default function Home() {
         );
 
       case 'error':
-        return (
-          <Card className="w-full max-w-2xl bg-destructive/10 border-destructive">
-            <CardHeader className="flex-row items-center gap-4">
-              <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
-              <div className="flex-1">
-                <CardTitle className="text-destructive">Project Configuration Needed</CardTitle>
-                <CardDescription className="text-destructive/80">
-                  Your app is failing to connect to Firebase. This is usually due to a misconfiguration in your Firebase project.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                  <h3 className="font-semibold">Common Issue: Auth Provider Not Enabled</h3>
-                  <p className="text-sm text-destructive/80">This app uses Google Sign-In. You must enable it in your Firebase project.</p>
-                  <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
-                      <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
-                      <li>Navigate to <span className="font-bold">Authentication &gt; Sign-in method</span>.</li>
-                      <li>Find <span className="font-bold">"Google"</span> in the provider list and click it.</li>
-                      <li><span className="font-bold">Enable</span> the toggle switch, provide a project support email, and click <span className="font-bold">Save</span>.</li>
-                  </ol>
-              </div>
-              <div className="space-y-2">
-                  <h3 className="font-semibold">Check your Firestore Security Rules</h3>
-                  <p className="text-sm text-destructive/80">Your Firestore database needs a security rule to allow authenticated users to create and join games.</p>
-                   <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
-                      <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
-                      <li>Navigate to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
-                      <li>Ensure the rules allow writes for authenticated users (see README).</li>
-                  </ol>
-              </div>
-               <p className="text-sm font-semibold text-center pt-4">After completing all setup steps, refresh this page.</p>
-            </CardContent>
-          </Card>
-        );
+        return renderAuthError();
 
       case 'unauthenticated':
         return (

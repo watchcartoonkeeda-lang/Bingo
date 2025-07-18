@@ -25,11 +25,18 @@ This project requires a Firebase project to handle the backend, database, and au
     *   Give it a nickname and click "Register app".
     *   You will be shown a `firebaseConfig` object. Keep this page open; you will need these values for the next step.
 
-3.  **Enable Google Sign-In**:
+3.  **Configure Firebase Authentication**:
     *   In the Firebase Console, go to **Authentication** (under the "Build" menu).
-    *   Click the **"Sign-in method"** tab.
-    *   Select **"Google"** from the provider list.
-    *   **Enable** the toggle switch, provide a project support email, and click **Save**.
+
+    *   **Enable Google Sign-In**:
+        *   Click the **"Sign-in method"** tab.
+        *   Select **"Google"** from the provider list.
+        *   **Enable** the toggle switch, provide a project support email, and click **Save**.
+
+    *   **Authorize Local Development Domain**:
+        *   Click the **"Settings"** tab.
+        *   Under **"Authorized domains"**, click **"Add domain"**.
+        *   Enter **`localhost`** and click **Add**. This is crucial for allowing Google Sign-In to work during local development.
 
 4.  **Set Up Firestore Database**:
     *   In the Firebase Console, go to **Firestore Database** (under the "Build" menu).
@@ -77,4 +84,4 @@ Once your environment variables are set, you can start the development server:
 npm run dev
 ```
 
-Open [http://localhost:9002](http://localhost:9002) with your browser to see the result. You should now be able to create and play a new game.
+Open [http://localhost:9002](http://localhost:9002) with your browser to see the result. You should now be able to sign in and play a new game.
