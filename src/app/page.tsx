@@ -8,7 +8,7 @@ import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { firestore, authReadyPromise } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/icons";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, User, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -32,7 +32,7 @@ export default function Home() {
       });
   }, []);
 
-  const createNewGame = async () => {
+  const createNewGame = async (isBotGame: boolean = false) => {
     setIsGameLoading(true);
     try {
       const gameId = Math.random().toString(36).substring(2, 9);
@@ -46,6 +46,9 @@ export default function Home() {
         calledNumbers: [],
         currentTurn: null,
         winner: null,
+        maxPlayers: isBotGame ? 2 : 4,
+        isBotGame: isBotGame,
+        hostId: null,
       });
       
       router.push(`/game/${gameId}`);
@@ -132,15 +135,18 @@ service cloud.firestore {
         </header>
         <h2 className="text-2xl font-bold mb-4">Welcome to Multiplayer Bingo!</h2>
         <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-          Create a new game room and share the link with a friend to start playing in real-time.
+          Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
         </p>
-        <Button onClick={createNewGame} disabled={isGameLoading} size="lg">
-          {isGameLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            "Create New Game"
-          )}
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Button onClick={() => createNewGame(false)} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
+            {isGameLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
+            Play with Friends
+          </Button>
+          <Button onClick={() => createNewGame(true)} disabled={isGameLoading} size="lg" variant="secondary" className="w-full sm:w-auto">
+            {isGameLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2"/>}
+            Play with Bot
+          </Button>
+        </div>
       </div>
     );
   };

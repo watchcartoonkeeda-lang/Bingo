@@ -13,9 +13,11 @@ import { AppLogo } from "@/components/icons";
 import { checkWin, countWinningLines } from "@/lib/game-logic";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, PartyPopper } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
+import { playBotTurn } from "@/ai/flows/bot-player";
+
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
 type Player = {
@@ -23,6 +25,7 @@ type Player = {
   name: string;
   board: number[];
   isBoardReady: boolean;
+  isBot: boolean;
 };
 type GameState = {
   id: string;
@@ -31,6 +34,9 @@ type GameState = {
   calledNumbers: number[];
   currentTurn: string | null;
   winner: string | null;
+  maxPlayers: number;
+  isBotGame: boolean;
+  hostId: string | null;
 };
 
 const INITIAL_BOARD = Array(25).fill(null);
@@ -49,8 +55,9 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
+  
   const localPlayer = gameState?.players?.[localPlayerId || ''];
-  const otherPlayer = Object.values(gameState?.players || {}).find(p => p.id !== localPlayerId);
+  const otherPlayers = Object.values(gameState?.players || {}).filter(p => p.id !== localPlayerId);
 
   useEffect(() => {
     let playerId = sessionStorage.getItem("playerId");
@@ -64,7 +71,6 @@ export default function GamePage() {
   // Effect to subscribe to game state. It ONLY reads data.
   useEffect(() => {
     if (!gameId) return;
-
     const gameRef = doc(firestore, "games", gameId);
     
     const unsubscribe = onSnapshot(gameRef, (docSnap) => {
@@ -89,6 +95,7 @@ export default function GamePage() {
 
     // Effect to check for bingo readiness and notify the player
   useEffect(() => {
+    if (!localPlayer) return;
     if (gameState?.status === 'playing' && localPlayer?.board.length > 0) {
       const currentCompletedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
       if (currentCompletedLines >= LINES_TO_WIN && prevCompletedLines.current < LINES_TO_WIN) {
@@ -103,12 +110,49 @@ export default function GamePage() {
     }
   }, [gameState?.calledNumbers, gameState?.status, localPlayer, toast]);
 
+  // Effect for Bot's turn
+  useEffect(() => {
+    if (gameState?.status !== 'playing' || !gameState.isBotGame) return;
+
+    const botPlayer = Object.values(gameState.players).find(p => p.isBot);
+    if (botPlayer && gameState.currentTurn === botPlayer.id) {
+        const handleBotTurn = async () => {
+            await new Promise(resolve => setTimeout(resolve, 1500)); // Bot "thinks"
+
+            const botResult = await playBotTurn({
+                playerBoard: botPlayer.board,
+                calledNumbers: gameState.calledNumbers,
+                allNumbers: ALL_NUMBERS
+            });
+
+            if (botResult.shouldCallBingo) {
+                // Bot calls Bingo
+                const botWon = checkWin(botPlayer.board, gameState.calledNumbers);
+                const gameRef = doc(firestore, "games", gameId);
+                if (botWon) {
+                    await updateDoc(gameRef, {
+                        status: 'finished',
+                        winner: botPlayer.id,
+                    });
+                } else {
+                    // This case should ideally not happen if bot logic is correct
+                    console.log("Bot called Bingo but didn't win. What a silly bot.");
+                }
+            } else {
+                // Bot calls a number
+                await handleCallNumber(botResult.chosenNumber, botPlayer.id);
+            }
+        };
+        handleBotTurn();
+    }
+  }, [gameState, gameId]);
+
 
   const handleJoinGame = async () => {
       if (!localPlayerId || !gameState || gameState.players[localPlayerId]) return;
       
       const playerCount = Object.keys(gameState.players).length;
-      if (playerCount >= 2) {
+      if (playerCount >= gameState.maxPlayers) {
           toast({ variant: "destructive", title: "Game is full"});
           return;
       }
@@ -121,15 +165,28 @@ export default function GamePage() {
               name: `Player ${playerCount + 1}`,
               board: [],
               isBoardReady: false,
+              isBot: false,
           };
-
-          await updateDoc(gameRef, {
-              [`players.${localPlayerId}`]: newPlayer
-          });
           
-          // If joining makes the game full, transition state to 'setup'
-          if (playerCount + 1 === 2) {
-              await updateDoc(gameRef, { status: 'setup' });
+          let updates: any = { [`players.${localPlayerId}`]: newPlayer };
+          // If this is the first player, they become the host
+          if (playerCount === 0) {
+              updates.hostId = localPlayerId;
+          }
+
+          await updateDoc(gameRef, updates);
+          
+          if (gameState.isBotGame) {
+            const botId = 'bot_player_1';
+            const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
+            const botPlayer: Player = {
+                id: botId,
+                name: 'BingoBot',
+                board: botBoard,
+                isBoardReady: true,
+                isBot: true,
+            };
+            await updateDoc(gameRef, { [`players.${botId}`]: botPlayer });
           }
 
       } catch (error) {
@@ -172,44 +229,45 @@ export default function GamePage() {
 
     const gameRef = doc(firestore, "games", gameId);
     
-    // Update the local player's board and ready status
     await updateDoc(gameRef, {
       [`players.${localPlayerId}.board`]: playerBoard,
       [`players.${localPlayerId}.isBoardReady`]: true,
     });
-
-    // To prevent race conditions, fetch the latest game state AFTER our update.
-    const updatedGameSnap = await getDoc(gameRef);
-    if (!updatedGameSnap.exists()) return;
-
-    const updatedGameData = updatedGameSnap.data() as GameState;
-    const allPlayers = Object.values(updatedGameData.players);
-
-    // If all players are ready, start the game.
-    if (updatedGameData.status === 'setup' && allPlayers.length === 2 && allPlayers.every(p => p.isBoardReady)) {
-       const startingPlayerId = allPlayers[Math.floor(Math.random() * allPlayers.length)].id;
-       await updateDoc(gameRef, {
-        status: 'playing',
-        currentTurn: startingPlayerId,
-        calledNumbers: [] // Ensure called numbers are reset for a new game
-      });
-    }
   };
 
+  const handleStartGame = async () => {
+      if (!gameState || localPlayerId !== gameState.hostId) return;
 
-  const handleCallNumber = async (num: number) => {
-    if (!gameState || !localPlayerId || gameState.currentTurn !== localPlayerId || gameState.calledNumbers.includes(num)) return;
+      const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
+      if (!allPlayersReady) {
+          toast({ variant: 'destructive', title: "Not all players are ready!"});
+          return;
+      }
+
+      const gameRef = doc(firestore, "games", gameId);
+      const playerIds = Object.keys(gameState.players);
+      const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+      
+      await updateDoc(gameRef, {
+        status: 'playing',
+        currentTurn: startingPlayerId,
+        calledNumbers: []
+      });
+  }
+
+
+  const handleCallNumber = async (num: number, callerId: string) => {
+    if (!gameState || gameState.calledNumbers.includes(num)) return;
     
     const gameRef = doc(firestore, "games", gameId);
     
     const playerIds = Object.keys(gameState.players);
-    const currentPlayerIndex = playerIds.indexOf(localPlayerId);
+    const currentPlayerIndex = playerIds.indexOf(callerId);
     const nextPlayerId = playerIds[(currentPlayerIndex + 1) % playerIds.length];
 
     const newCalledNumbers = [...gameState.calledNumbers, num];
     
     if (newCalledNumbers.length === 25) {
-      // It's a draw if the board is full and no one has won
       await updateDoc(gameRef, {
         status: 'finished',
         winner: 'DRAW',
@@ -284,14 +342,14 @@ export default function GamePage() {
           if (!localPlayer) {
               return (
                   <div className="text-center">
-                      <Lobby gameId={gameId} players={Object.values(gameState.players)} />
+                      <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame}/>
                       <Button onClick={handleJoinGame} disabled={isJoining} size="lg" className="mt-8">
                           {isJoining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Join Game'}
                       </Button>
                   </div>
               );
           }
-          return <Lobby gameId={gameId} players={Object.values(gameState.players)} />;
+          return <Lobby gameId={gameId} players={Object.values(gameState.players)} hostId={gameState.hostId} localPlayerId={localPlayerId} onStartGame={handleStartGame} />;
 
       case "setup":
         const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
@@ -300,10 +358,7 @@ export default function GamePage() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        {otherPlayer && otherPlayer.isBoardReady 
-                          ? 'Starting game...' 
-                          : `Waiting for ${otherPlayer?.name || 'the other player'} to set up their board...`
-                        }
+                        Waiting for the host to start the game...
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                 </div>
@@ -338,15 +393,17 @@ export default function GamePage() {
            )
         }
         const completedLines = countWinningLines(localPlayer.board, gameState.calledNumbers);
+        const currentTurnPlayer = gameState.players[gameState.currentTurn!];
+
         return (
           <GameBoard
             playerBoard={localPlayer.board}
             calledNumbers={gameState.calledNumbers}
-            onCallNumber={handleCallNumber}
+            onCallNumber={(num) => handleCallNumber(num, localPlayerId)}
             onBingoCall={handleBingoCall}
             currentTurnId={gameState.currentTurn}
             localPlayerId={localPlayerId}
-            otherPlayerName={otherPlayer?.name || 'Opponent'}
+            otherPlayerName={currentTurnPlayer?.name || 'Opponent'}
             allNumbers={ALL_NUMBERS}
             completedLines={completedLines}
             linesToWin={LINES_TO_WIN}
@@ -354,10 +411,11 @@ export default function GamePage() {
         );
       
       case "finished":
+        const winnerPlayer = gameState.players[gameState.winner || ''];
         return (
             <GameOverDialog
                 isOpen={true}
-                winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? 'DRAW' : otherPlayer?.name || 'Opponent')}
+                winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? 'DRAW' : winnerPlayer?.name || 'Opponent')}
                 isPlayerWinner={gameState.winner === localPlayerId}
                 onPlayAgain={handleResetGame}
                 onGoToLobby={() => router.push('/')}
@@ -379,7 +437,7 @@ export default function GamePage() {
               playerBoard={localPlayer.board}
               calledNumbers={gameState.calledNumbers}
               disabled={gameState.currentTurn !== localPlayerId}
-              opponentName={otherPlayer?.name || 'the other player'}
+              opponentName={otherPlayers.map(p => p.name).join(', ') || 'the other players'}
             />
           )}
         </header>

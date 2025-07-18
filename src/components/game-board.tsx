@@ -24,7 +24,7 @@ interface GameBoardProps {
 export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers, completedLines, linesToWin }: GameBoardProps) {
   const isPlayerTurn = currentTurnId === localPlayerId;
   
-  const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}...`;
+  const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}'s turn...`;
 
   const canCallBingo = completedLines >= linesToWin;
 

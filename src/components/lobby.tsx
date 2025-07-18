@@ -7,19 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Users, Loader2 } from "lucide-react";
+import { Copy, Users, Loader2, CheckCircle, Hourglass, Bot } from "lucide-react";
 
 interface Player {
   id: string;
   name: string;
+  isBoardReady: boolean;
+  isBot: boolean;
 }
 
 interface LobbyProps {
   gameId: string;
   players: Player[];
+  hostId: string | null;
+  localPlayerId: string | null;
+  onStartGame: () => void;
 }
 
-export function Lobby({ gameId, players }: LobbyProps) {
+export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame }: LobbyProps) {
   const { toast } = useToast();
   const [joinLink, setJoinLink] = useState("");
 
@@ -37,12 +42,15 @@ export function Lobby({ gameId, players }: LobbyProps) {
     });
   };
 
+  const isHost = localPlayerId === hostId;
+  const allPlayersReady = players.length > 1 && players.every(p => p.isBoardReady);
+
   return (
     <Card className="w-full max-w-md mx-auto animate-fade-in">
       <CardHeader>
-        <CardTitle className="text-center">Waiting for Player</CardTitle>
+        <CardTitle className="text-center">Game Lobby</CardTitle>
         <CardDescription className="text-center">
-          Share this game with a friend to begin.
+          Share this game with friends to begin. The host will start the game when everyone is ready.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-6">
@@ -60,22 +68,34 @@ export function Lobby({ gameId, players }: LobbyProps) {
         </div>
         <div className="w-full">
             <h3 className="font-semibold flex items-center justify-center gap-2 mb-2">
-                <Users className="h-5 w-5" /> Players ({players.length}/2)
+                <Users className="h-5 w-5" /> Players ({players.length}/4)
             </h3>
             <ul className="space-y-2">
                 {players.map(p => (
-                    <li key={p.id} className="flex items-center justify-center bg-secondary p-2 rounded-md">
-                        {p.name}
+                    <li key={p.id} className="flex items-center justify-between bg-secondary p-3 rounded-md">
+                        <div className="flex items-center gap-2 font-semibold">
+                          {p.isBot ? <Bot className="h-5 w-5 text-primary" /> : <User className="h-5 w-5" />}
+                          {p.name} {p.id === hostId && "(Host)"}
+                        </div>
+                        {p.isBoardReady ? 
+                          <span className="flex items-center gap-1 text-green-500 text-xs"><CheckCircle className="h-4 w-4" /> Ready</span> : 
+                          <span className="flex items-center gap-1 text-muted-foreground text-xs"><Hourglass className="h-4 w-4" /> Setting up...</span>
+                        }
                     </li>
                 ))}
-                {players.length < 2 && (
-                    <li className="flex items-center justify-center gap-2 text-muted-foreground p-2 rounded-md">
+                {players.length < 4 && !players.find(p => p.isBot) &&(
+                    <li className="flex items-center justify-center gap-2 text-muted-foreground p-2 rounded-md border-2 border-dashed">
                         <Loader2 className="h-4 w-4 animate-spin"/>
-                        Waiting for opponent...
+                        Waiting for more players...
                     </li>
                 )}
             </ul>
         </div>
+        {isHost && (
+          <Button onClick={onStartGame} disabled={!allPlayersReady} size="lg" className="w-full">
+            {allPlayersReady ? "Start Game" : "Waiting for players to be ready"}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
