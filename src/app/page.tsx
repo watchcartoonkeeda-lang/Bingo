@@ -38,18 +38,10 @@ export default function Home() {
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
+      // Create the game document with minimal data first.
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
-        players: {},
-        calledNumbers: [],
-        currentTurn: null,
-        winner: null,
-      });
-
-      await updateDoc(gameRef, {
-        createdAt: serverTimestamp(),
-        lastActivity: serverTimestamp(),
       });
       
       router.push(`/game/${gameId}`);
@@ -57,9 +49,12 @@ export default function Home() {
       console.error("Error creating new game:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Could not create a new game. Please try again.",
+        title: "Error Creating Game",
+        description: "Could not create a new game. This is likely a Firestore Security Rules issue. Please check the instructions on the home page.",
       });
+      // Force a re-render to show the error card if rules are wrong
+      setAuthStatus("error"); 
+      setAuthError({ code: 'firestore/permission-denied' });
       setIsGameLoading(false);
     }
   };
@@ -76,27 +71,51 @@ export default function Home() {
 
     if (authStatus === 'error') {
        return (
-        <Card className="w-full max-w-lg bg-destructive/10 border-destructive">
+        <Card className="w-full max-w-2xl bg-destructive/10 border-destructive">
           <CardHeader className="flex-row items-center gap-4">
-            <AlertTriangle className="h-8 w-8 text-destructive" />
+            <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
             <div className="flex-1">
-              <CardTitle className="text-destructive">Configuration Needed</CardTitle>
+              <CardTitle className="text-destructive">Project Configuration Needed</CardTitle>
               <CardDescription className="text-destructive/80">
-                Anonymous sign-in is not enabled for this project.
+                Your app is failing to connect to Firebase. This is usually due to one of two reasons.
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4 text-sm">
-                <p>To fix this, please follow these steps:</p>
-                <ol className="list-decimal list-inside space-y-2 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+                <h3 className="font-semibold">Step 1: Enable Anonymous Authentication</h3>
+                <p className="text-sm text-destructive/80">Your app allows users to play without creating an account. This requires Anonymous Authentication to be enabled.</p>
+                <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
                     <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
                     <li>Navigate to <span className="font-bold">Authentication &gt; Sign-in method</span>.</li>
                     <li>Find <span className="font-bold">"Anonymous"</span> in the provider list and click it.</li>
                     <li><span className="font-bold">Enable</span> the toggle switch and click <span className="font-bold">Save</span>.</li>
-                    <li>Refresh this page.</li>
                 </ol>
             </div>
+            <div className="space-y-2">
+                <h3 className="font-semibold">Step 2: Update Firestore Security Rules</h3>
+                <p className="text-sm text-destructive/80">Your Firestore database needs a security rule to allow authenticated users to create and join games.</p>
+                 <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                    <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
+                    <li>Navigate to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
+                    <li>Replace the entire content with the rules below and click <span className="font-bold">Publish</span>.</li>
+                </ol>
+                <pre className="mt-2 text-xs bg-black/50 p-4 rounded-md overflow-x-auto">
+                  <code>
+{`rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow players to create, join, and play games if they are authenticated.
+    match /games/{gameId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}`}
+                  </code>
+                </pre>
+            </div>
+             <p className="text-sm font-semibold text-center pt-4">After completing both steps, refresh this page.</p>
           </CardContent>
         </Card>
       );
