@@ -171,106 +171,106 @@ export default function Home() {
   };
 
   const renderContent = () => {
-    if (authStatus === 'loading') {
-      return (
-         <div className="flex flex-col items-center gap-4">
-           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-           <p className="text-muted-foreground">Connecting...</p>
-         </div>
-      );
-    }
+    switch (authStatus) {
+      case 'loading':
+        return (
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Connecting...</p>
+          </div>
+        );
 
-    if (authStatus === 'error') {
-       return (
-        <Card className="w-full max-w-2xl bg-destructive/10 border-destructive">
-          <CardHeader className="flex-row items-center gap-4">
-            <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
-            <div className="flex-1">
-              <CardTitle className="text-destructive">Project Configuration Needed</CardTitle>
-              <CardDescription className="text-destructive/80">
-                Your app is failing to connect to Firebase. This is usually due to a misconfiguration in your Firebase project.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-                <h3 className="font-semibold">Common Issue: Auth Provider Not Enabled</h3>
-                <p className="text-sm text-destructive/80">This app uses Google Sign-In. You must enable it in your Firebase project.</p>
-                <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
-                    <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
-                    <li>Navigate to <span className="font-bold">Authentication &gt; Sign-in method</span>.</li>
-                    <li>Find <span className="font-bold">"Google"</span> in the provider list and click it.</li>
-                    <li><span className="font-bold">Enable</span> the toggle switch, provide a project support email, and click <span className="font-bold">Save</span>.</li>
-                </ol>
-            </div>
-            <div className="space-y-2">
-                <h3 className="font-semibold">Check your Firestore Security Rules</h3>
-                <p className="text-sm text-destructive/80">Your Firestore database needs a security rule to allow authenticated users to create and join games.</p>
-                 <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
-                    <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
-                    <li>Navigate to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
-                    <li>Ensure the rules allow writes for authenticated users (see README).</li>
-                </ol>
-            </div>
-             <p className="text-sm font-semibold text-center pt-4">After completing all setup steps, refresh this page.</p>
-          </CardContent>
-        </Card>
-      );
-    }
+      case 'error':
+        return (
+          <Card className="w-full max-w-2xl bg-destructive/10 border-destructive">
+            <CardHeader className="flex-row items-center gap-4">
+              <AlertTriangle className="h-8 w-8 text-destructive flex-shrink-0" />
+              <div className="flex-1">
+                <CardTitle className="text-destructive">Project Configuration Needed</CardTitle>
+                <CardDescription className="text-destructive/80">
+                  Your app is failing to connect to Firebase. This is usually due to a misconfiguration in your Firebase project.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                  <h3 className="font-semibold">Common Issue: Auth Provider Not Enabled</h3>
+                  <p className="text-sm text-destructive/80">This app uses Google Sign-In. You must enable it in your Firebase project.</p>
+                  <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                      <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
+                      <li>Navigate to <span className="font-bold">Authentication &gt; Sign-in method</span>.</li>
+                      <li>Find <span className="font-bold">"Google"</span> in the provider list and click it.</li>
+                      <li><span className="font-bold">Enable</span> the toggle switch, provide a project support email, and click <span className="font-bold">Save</span>.</li>
+                  </ol>
+              </div>
+              <div className="space-y-2">
+                  <h3 className="font-semibold">Check your Firestore Security Rules</h3>
+                  <p className="text-sm text-destructive/80">Your Firestore database needs a security rule to allow authenticated users to create and join games.</p>
+                   <ol className="list-decimal list-inside space-y-1 pl-2 font-mono text-xs bg-black/50 p-4 rounded-md">
+                      <li>Go to your <span className="font-bold">Firebase Console</span>.</li>
+                      <li>Navigate to <span className="font-bold">Firestore Database &gt; Rules</span>.</li>
+                      <li>Ensure the rules allow writes for authenticated users (see README).</li>
+                  </ol>
+              </div>
+               <p className="text-sm font-semibold text-center pt-4">After completing all setup steps, refresh this page.</p>
+            </CardContent>
+          </Card>
+        );
 
-    if (authStatus === 'unauthenticated') {
-      return (
-        <div className="text-center">
+      case 'unauthenticated':
+        return (
+          <div className="text-center">
+              <header className="flex items-center justify-center mb-8">
+                <AppLogo />
+              </header>
+              <h2 className="text-2xl font-bold mb-4">Welcome to Multiplayer Bingo!</h2>
+              <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                Please sign in with Google to start playing.
+              </p>
+              <Button onClick={handleSignIn} size="lg">
+                <LogIn className="mr-2" />
+                Sign in with Google
+              </Button>
+          </div>
+        );
+
+      case 'authenticated':
+        return (
+          <div className="text-center">
             <header className="flex items-center justify-center mb-8">
               <AppLogo />
             </header>
-            <h2 className="text-2xl font-bold mb-4">Welcome to Multiplayer Bingo!</h2>
+            <h2 className="text-2xl font-bold mb-4">Welcome, {user?.displayName || 'Player'}!</h2>
             <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-              Please sign in with Google to start playing.
+              Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
             </p>
-            <Button onClick={handleSignIn} size="lg">
-              <LogIn className="mr-2" />
-              Sign in with Google
-            </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="text-center">
-        <header className="flex items-center justify-center mb-8">
-          <AppLogo />
-        </header>
-        <h2 className="text-2xl font-bold mb-4">Welcome, {user?.displayName || 'Player'}!</h2>
-        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-          Challenge your friends in a real-time bingo showdown or test your skills against our smart AI opponent.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
-            {isGameLoading && gameInfoToCreate.current?.mode === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
-            Play with Friends
-          </Button>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                <Bot className="mr-2"/>
-                Play with Bot
-                <ChevronDown className="ml-2 h-4 w-4" />
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={() => handleCreateGameRequest('friends')} disabled={isGameLoading} size="lg" className="w-full sm:w-auto">
+                {isGameLoading && gameInfoToCreate.current?.mode === 'friends' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <User className="mr-2"/> }
+                Play with Friends
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'normal')}>
-                vs Normal Bot
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'hard')}>
-                vs Hard Bot
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    );
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="lg" variant="secondary" className="w-full sm:w-auto">
+                    <Bot className="mr-2"/>
+                    Play with Bot
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'normal')}>
+                    vs Normal Bot
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCreateGameRequest('bot', 'hard')}>
+                    vs Hard Bot
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        );
+    }
   };
 
 
