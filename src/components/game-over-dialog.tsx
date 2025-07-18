@@ -1,3 +1,4 @@
+
 // src/components/game-over-dialog.tsx
 "use client";
 
@@ -79,7 +80,7 @@ export function GameOverDialog({
   }, [isOpen, isPlayerWinner, winnerName]);
 
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const shareText = `I just won a game of BingoBoardBlitz with a winning streak of ${winningStreak}! Can you beat me?`;
     const fallbackCopy = () => {
       navigator.clipboard.writeText(`${shareText} Play here: ${window.location.href}`);
@@ -90,19 +91,18 @@ export function GameOverDialog({
     }
 
     if (navigator.share) {
-      navigator
-        .share({
+      try {
+        await navigator.share({
           title: "I Won at BingoBoardBlitz!",
           text: shareText,
           url: window.location.href,
-        })
-        .catch((error) => {
-           // Fallback to clipboard if share fails or is aborted
-           if (error.name !== 'AbortError') {
-             console.error("Error sharing:", error);
-           }
-           fallbackCopy();
         });
+      } catch (error) {
+         if (error instanceof Error && error.name !== 'AbortError') {
+           console.error("Error sharing:", error);
+         }
+         fallbackCopy();
+      }
     } else {
       fallbackCopy();
     }
@@ -179,8 +179,8 @@ export function GameOverDialog({
               Share Win
             </Button>
           )}
-          <Button onClick={onPlayAgain} size="lg" className="w-full">
-            Play Again
+          <Button onClick={onGoToLobby} size="lg" className="w-full">
+            Go to Lobby
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
