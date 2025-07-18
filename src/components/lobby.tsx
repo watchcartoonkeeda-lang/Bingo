@@ -45,7 +45,8 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
   };
 
   const isHost = localPlayerId === hostId;
-  const canStartGame = players.length >= 2 && players.every(p => p.isBoardReady);
+  const readyPlayersCount = players.filter(p => p.isBoardReady).length;
+  const canStartGame = readyPlayersCount >= 2;
   const maxPlayers = isBotGame ? 2 : 4;
 
 
@@ -53,7 +54,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
     if (players.length < 2 && !isBotGame) {
       return "Waiting for another player...";
     }
-    if (!players.every(p => p.isBoardReady)) {
+    if (readyPlayersCount < 2) {
       return "Waiting for players to be ready";
     }
     return "Start Game";
@@ -65,7 +66,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
       <CardHeader className="text-center">
         <CardTitle>Game Lobby</CardTitle>
         <CardDescription>
-          {isBotGame ? "Get your board ready to play against the bot!" : "Share this game with friends to begin. The host will start the game when everyone is ready."}
+          {isBotGame ? "Get your board ready to play against the bot!" : "Share this game with friends to begin. The host will start the game when at least 2 players are ready."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -120,7 +121,7 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
           </Button>
         )}
          {isHost && isBotGame && (
-          <Button onClick={onStartGame} size="lg" className="w-full">
+          <Button onClick={() => router.push(`/game/${gameId}`)} size="lg" className="w-full">
             Go to Setup
           </Button>
         )}

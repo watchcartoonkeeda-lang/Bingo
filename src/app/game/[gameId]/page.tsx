@@ -265,18 +265,25 @@ export default function GamePage() {
   const handleStartGame = async () => {
       if (!gameState || localPlayerId !== gameState.hostId) return;
 
-      const allPlayersReady = Object.values(gameState.players).every(p => p.isBoardReady);
-      if (!allPlayersReady) {
-          toast({ variant: 'destructive', title: "Not all players are ready!"});
+      const readyPlayers = Object.values(gameState.players).filter(p => p.isBoardReady);
+      if (readyPlayers.length < 2) {
+          toast({ variant: 'destructive', title: "Not enough players are ready!"});
           return;
       }
       
       const gameRef = doc(firestore, "games", gameId);
-      const playerIds = Object.keys(gameState.players);
-      const startingPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
+      const readyPlayerIds = readyPlayers.map(p => p.id);
+      const startingPlayerId = readyPlayerIds[Math.floor(Math.random() * readyPlayerIds.length)];
+
+      // Construct a new players object containing only the ready players
+      const inGamePlayers: {[key: string]: Player} = {};
+      for (const player of readyPlayers) {
+          inGamePlayers[player.id] = player;
+      }
       
       await updateDoc(gameRef, {
         status: 'playing',
+        players: inGamePlayers, // Only include ready players in the game
         currentTurn: startingPlayerId,
         calledNumbers: []
       });
@@ -331,11 +338,17 @@ export default function GamePage() {
 
   const handleResetGame = async () => {
     if (!gameState) return;
-    const gameRef = doc(firestore, "games", gameId);
     
+    // We need the original game doc to know all players who were ever in the lobby
+    const gameRef = doc(firestore, "games", gameId);
+    const originalDoc = await getDoc(gameRef);
+    if (!originalDoc.exists()) return;
+    
+    const originalGameState = originalDoc.data() as GameState;
+
     const freshPlayers: {[key: string]: Player} = {};
-    for (const id in gameState.players) {
-        const player = gameState.players[id];
+    for (const id in originalGameState.players) {
+        const player = originalGameState.players[id];
         if (player.isBot) {
             // Keep the bot, but reset its board
             const newBotBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
@@ -402,7 +415,7 @@ export default function GamePage() {
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Board Confirmed!</h2>
                     <p className="text-muted-foreground">
-                        { gameState.isBotGame ? "Starting game..." : "Waiting for other players to get ready..."}
+                        { gameState.isBotGame ? "Starting game..." : "Waiting for the host to start the game..."}
                     </p>
                     <Loader2 className="mt-4 h-8 w-8 animate-spin mx-auto text-primary"/>
                 </div>

@@ -63,7 +63,7 @@ export function GameOverDialog({
     // Update history
     const newResult: GameResult = {
       result: isPlayerWinner ? 'win' : (winnerName === 'DRAW' ? 'draw' : 'loss'),
-      opponent: isPlayerWinner ? 'You' : winnerName || 'Opponent',
+      opponent: isPlayerWinner ? (winnerName || 'Yourself') : (winnerName || 'Opponent'),
       date: new Date().toLocaleString()
     };
     const updatedHistory = [newResult, ...storedHistory].slice(0, MAX_HISTORY);
@@ -167,7 +167,7 @@ export function GameOverDialog({
         </div>
 
 
-        <AlertDialogFooter className="mt-4 sm:flex-row gap-2">
+        <AlertDialogFooter className="mt-4 sm:flex-row sm:justify-center gap-2">
            {isPlayerWinner && (
             <Button onClick={handleShare} size="lg" variant="secondary" className="w-full">
               <Share2 className="mr-2" />
