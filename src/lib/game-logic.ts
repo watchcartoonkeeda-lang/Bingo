@@ -48,3 +48,21 @@ export function countWinningLines(board: (number | null)[], calledNumbers: numbe
         return count;
     }, 0);
 }
+
+export function getBotMove(board: number[], calledNumbers: number[], allNumbers: number[]): { shouldCallBingo: boolean, chosenNumber: number | null } {
+  // 1. Check if the bot has won
+  const hasWon = checkWin(board, calledNumbers);
+  if (hasWon) {
+    return { shouldCallBingo: true, chosenNumber: null };
+  }
+
+  // 2. If not a winner, choose a random available number
+  const availableNumbers = allNumbers.filter(n => !calledNumbers.includes(n));
+  if (availableNumbers.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+    return { shouldCallBingo: false, chosenNumber: availableNumbers[randomIndex] };
+  }
+
+  // 3. No moves left (should not happen in a normal game)
+  return { shouldCallBingo: false, chosenNumber: null };
+}

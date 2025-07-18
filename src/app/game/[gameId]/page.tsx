@@ -10,13 +10,12 @@ import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
 import { GameOverDialog } from "@/components/game-over-dialog";
 import { AppLogo } from "@/components/icons";
-import { checkWin, countWinningLines } from "@/lib/game-logic";
+import { checkWin, countWinningLines, getBotMove } from "@/lib/game-logic";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { Lobby } from "@/components/lobby";
 import { AIAdvisor } from "@/components/ai-advisor";
-import { playBotTurn } from "@/ai/flows/bot-player";
 import { GameInstructions } from "@/components/game-instructions";
 import { SetupTimer } from "@/components/setup-timer";
 
@@ -57,7 +56,8 @@ export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const prevCompletedLines = useRef(0);
-  
+
+  // All hooks called unconditionally at the top level
   useEffect(() => {
     let playerId = sessionStorage.getItem("playerId");
     if (!playerId) {
@@ -163,27 +163,17 @@ export default function GamePage() {
     if (botPlayer && gameState.currentTurn === botPlayer.id) {
         const handleBotTurn = async () => {
             await new Promise(resolve => setTimeout(resolve, 1500)); // Bot "thinks"
+            
+            const botMove = getBotMove(botPlayer.board, gameState.calledNumbers, ALL_NUMBERS);
 
-            const botResult = await playBotTurn({
-                playerBoard: botPlayer.board,
-                calledNumbers: gameState.calledNumbers,
-                allNumbers: ALL_NUMBERS
-            });
-
-            if (botResult.shouldCallBingo) {
-                const botWon = checkWin(botPlayer.board, gameState.calledNumbers);
+            if (botMove.shouldCallBingo) {
                 const gameRef = doc(firestore, "games", gameId);
-                if (botWon) {
-                    await updateDoc(gameRef, {
-                        status: 'finished',
-                        winner: botPlayer.id,
-                    });
-                } else {
-                    console.log("Bot called Bingo but didn't win. What a silly bot.");
-                    await handleCallNumber(botResult.chosenNumber, botPlayer.id);
-                }
-            } else {
-                await handleCallNumber(botResult.chosenNumber, botPlayer.id);
+                await updateDoc(gameRef, {
+                    status: 'finished',
+                    winner: botPlayer.id,
+                });
+            } else if (botMove.chosenNumber) {
+                await handleCallNumber(botMove.chosenNumber, botPlayer.id);
             }
         };
         handleBotTurn();
@@ -347,6 +337,7 @@ export default function GamePage() {
     }
   }, [localPlayer, handleConfirmBoard, toast]);
 
+  // Loading state must be checked AFTER all hooks are called.
   if (isLoading || !gameState || !localPlayerId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
