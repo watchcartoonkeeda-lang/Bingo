@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -5,12 +6,10 @@ import { collection, query, orderBy, limit, onSnapshot, doc } from "firebase/fir
 import { firestore, auth } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Award, Medal, Trophy, TrendingUp, Calendar, Sun, Flame } from "lucide-react";
+import { Award, Medal, Trophy, Sun, Calendar, Flame } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { onAuthStateChanged, type User } from "firebase/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton";
-
 
 interface PlayerStat {
   id: string;
@@ -23,6 +22,10 @@ interface PlayerStat {
 }
 
 type LeaderboardType = 'score' | 'dailyWins' | 'weeklyWins' | 'monthlyWins';
+
+interface LeaderboardProps {
+    showAllTimeOnly?: boolean;
+}
 
 const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -135,50 +138,45 @@ function LeaderboardList({ type }: { type: LeaderboardType }) {
     );
 }
 
-export function Leaderboard() {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribeAuth();
-  }, []);
-
-  if (!user) {
-    return null; // Don't show anything if user is not logged in
-  }
-
+export function Leaderboard({ showAllTimeOnly = false }: LeaderboardProps) {
   return (
     <div className="w-full max-w-lg mx-auto">
         <Card>
             <CardHeader>
-                <CardTitle>Leaderboards</CardTitle>
-                <CardDescription>See who's dominating the game!</CardDescription>
+                <CardTitle>{showAllTimeOnly ? 'All-Time Top Players' : 'Global Leaderboards'}</CardTitle>
+                <CardDescription>
+                    {showAllTimeOnly ? 'See who has the most wins of all time!' : "See who's dominating the game right now!"}
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                <Tabs defaultValue="score">
-                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
-                        <TabsTrigger value="score"><Trophy className="mr-2 h-4 w-4" />All-Time</TabsTrigger>
-                        <TabsTrigger value="dailyWins"><Sun className="mr-2 h-4 w-4" />Daily</TabsTrigger>
-                        <TabsTrigger value="weeklyWins"><Calendar className="mr-2 h-4 w-4" />Weekly</TabsTrigger>
-                        <TabsTrigger value="monthlyWins"><Flame className="mr-2 h-4 w-4" />Monthly</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="score">
-                        <LeaderboardList type="score" />
-                    </TabsContent>
-                    <TabsContent value="dailyWins">
-                        <LeaderboardList type="dailyWins" />
-                    </TabsContent>
-                    <TabsContent value="weeklyWins">
-                         <LeaderboardList type="weeklyWins" />
-                    </TabsContent>
-                    <TabsContent value="monthlyWins">
-                         <LeaderboardList type="monthlyWins" />
-                    </TabsContent>
-                </Tabs>
+                {showAllTimeOnly ? (
+                     <LeaderboardList type="score" />
+                ) : (
+                    <Tabs defaultValue="score">
+                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+                            <TabsTrigger value="score"><Trophy className="mr-2 h-4 w-4" />All-Time</TabsTrigger>
+                            <TabsTrigger value="dailyWins"><Sun className="mr-2 h-4 w-4" />Daily</TabsTrigger>
+                            <TabsTrigger value="weeklyWins"><Calendar className="mr-2 h-4 w-4" />Weekly</TabsTrigger>
+                            <TabsTrigger value="monthlyWins"><Flame className="mr-2 h-4 w-4" />Monthly</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="score">
+                            <LeaderboardList type="score" />
+                        </TabsContent>
+                        <TabsContent value="dailyWins">
+                            <LeaderboardList type="dailyWins" />
+                        </TabsContent>
+                        <TabsContent value="weeklyWins">
+                            <LeaderboardList type="weeklyWins" />
+                        </TabsContent>
+                        <TabsContent value="monthlyWins">
+                            <LeaderboardList type="monthlyWins" />
+                        </TabsContent>
+                    </Tabs>
+                )}
             </CardContent>
         </Card>
     </div>
   );
 }
+
+    

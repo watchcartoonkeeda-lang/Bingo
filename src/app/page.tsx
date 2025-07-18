@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateProfile } from "firebase/auth";
 import { Leaderboard } from "@/components/leaderboard";
+import { PersonalStreaks } from "@/components/personal-streaks";
 import { updateUserProfile } from "@/lib/player-stats";
 
 type GameMode = 'friends' | 'bot';
@@ -289,14 +290,15 @@ export default function Home() {
                   Sign in with Google
                 </Button>
               </div>
+              <Leaderboard showAllTimeOnly={true} />
           </div>
         );
 
       case 'authenticated':
         return (
-          <div className="text-center space-y-12">
+          <div className="w-full max-w-xl text-center space-y-12">
             <div className="space-y-4">
-               <header className="flex items-center justify-between w-full max-w-lg mx-auto">
+               <header className="flex items-center justify-between w-full mx-auto">
                  <AppLogo />
                  <Button onClick={handleSignOut} variant="ghost" size="sm">
                    <LogOut className="mr-2 h-4 w-4" />
@@ -332,7 +334,10 @@ export default function Home() {
                 </DropdownMenu>
               </div>
             </div>
-            <Leaderboard />
+            <div className="space-y-8">
+              <PersonalStreaks />
+              <Leaderboard />
+            </div>
           </div>
         );
     }
@@ -341,7 +346,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-4 bg-background dark:bg-gray-900">
-      {renderContent()}
+       {renderContent()}
 
       <AlertDialog open={showNameDialog} onOpenChange={setShowNameDialog}>
         <AlertDialogContent>
@@ -372,3 +377,5 @@ export default function Home() {
     </main>
   );
 }
+
+    
