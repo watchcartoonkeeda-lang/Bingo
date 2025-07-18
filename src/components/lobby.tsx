@@ -106,17 +106,22 @@ export function Lobby({ gameId, players, hostId, localPlayerId, onStartGame, isB
                 }
               </li>
             ))}
-            {players.length < maxPlayers && !isBotGame && (
+            {players.length < 2 && !isBotGame && (
               <li className="flex items-center justify-center gap-2 text-muted-foreground p-3 rounded-lg border-2 border-dashed border-gray-700">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Waiting for more players...
+                Waiting for another player...
               </li>
             )}
           </ul>
         </div>
-        {isHost && (
+        {isHost && !isBotGame && (
           <Button onClick={onStartGame} disabled={!canStartGame} size="lg" className="w-full">
             {getStartButtonText()}
+          </Button>
+        )}
+         {isHost && isBotGame && (
+          <Button onClick={onStartGame} size="lg" className="w-full">
+            Go to Setup
           </Button>
         )}
       </CardContent>
