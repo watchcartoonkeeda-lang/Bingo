@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, arrayUnion, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, arrayUnion } from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
 import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
@@ -169,6 +169,7 @@ export default function GamePage() {
 
 
   const handleConfirmBoard = async () => {
+    const isBoardSetupComplete = playerBoard.every((cell) => cell !== null);
     if (!localPlayerId || !isBoardSetupComplete) return;
 
     const gameRef = doc(firestore, "games", gameId);
