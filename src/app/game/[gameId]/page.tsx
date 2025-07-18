@@ -84,7 +84,7 @@ export default function GamePage() {
       
       const gameData = docSnap.data() as GameState;
 
-      // Auto-join logic
+      // Auto-join logic for non-hosts
       if (localPlayerId && !gameData.players[localPlayerId] && gameData.status !== 'playing' && gameData.status !== 'finished') {
           const playerCount = Object.keys(gameData.players).length;
           if (playerCount < gameData.maxPlayers) {
@@ -92,11 +92,22 @@ export default function GamePage() {
           }
       }
       
-      // If it's a bot game and the local player just joined, move to setup
-      if (gameData.isBotGame && gameData.status === 'waiting' && gameData.players[localPlayerId]) {
+      // If it's a bot game and the local player (host) is in, add the bot.
+      if (gameData.isBotGame && gameData.status === 'waiting' && gameData.players[localPlayerId] && Object.keys(gameData.players).length === 1) {
         if(gameData.hostId === localPlayerId){ // only host triggers this
-            const gameRef = doc(firestore, "games", gameId);
-            updateDoc(gameRef, { status: 'setup' });
+            const botId = 'bot_player_1';
+            const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
+            const botPlayer: Player = {
+                id: botId,
+                name: 'BingoBot',
+                board: botBoard,
+                isBoardReady: true,
+                isBot: true,
+            };
+            await updateDoc(gameRef, { 
+              [`players.${botId}`]: botPlayer,
+              status: 'setup' 
+            });
         }
       }
 
@@ -194,25 +205,8 @@ export default function GamePage() {
           };
           
           let updates: any = { [`players.${localPlayerId}`]: newPlayer };
-          // If this is the first player, they become the host
-          if (playerCount === 0) {
-              updates.hostId = localPlayerId;
-          }
-
-          await updateDoc(gameRef, updates);
           
-          if (gameData.isBotGame && playerCount === 0) {
-            const botId = 'bot_player_1';
-            const botBoard = [...ALL_NUMBERS].sort(() => 0.5 - Math.random()).slice(0,25);
-            const botPlayer: Player = {
-                id: botId,
-                name: 'BingoBot',
-                board: botBoard,
-                isBoardReady: true,
-                isBot: true,
-            };
-            await updateDoc(gameRef, { [`players.${botId}`]: botPlayer });
-          }
+          await updateDoc(gameRef, updates);
 
       } catch (error) {
           console.error("Error joining game:", error);

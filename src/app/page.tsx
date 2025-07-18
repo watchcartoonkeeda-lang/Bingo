@@ -35,20 +35,38 @@ export default function Home() {
   const createNewGame = async (isBotGame: boolean = false) => {
     setIsGameLoading(true);
     try {
+      // Ensure we have a local player ID before creating the game
+      let localPlayerId = sessionStorage.getItem("playerId");
+      if (!localPlayerId) {
+        localPlayerId = `player_${Math.random().toString(36).substring(2, 9)}`;
+        sessionStorage.setItem("playerId", localPlayerId);
+      }
+
       const gameId = Math.random().toString(36).substring(2, 9);
       const gameRef = doc(firestore, "games", gameId);
 
-      // Create the game document with minimal data first.
+      // Create the host player object
+      const hostPlayer = {
+        id: localPlayerId,
+        name: `Player 1`,
+        board: [],
+        isBoardReady: false,
+        isBot: false,
+      };
+
+      // Create the game document with the host already in it.
       await setDoc(gameRef, {
         id: gameId,
         status: "waiting",
-        players: {},
+        players: {
+          [localPlayerId]: hostPlayer,
+        },
         calledNumbers: [],
         currentTurn: null,
         winner: null,
         maxPlayers: isBotGame ? 2 : 4,
         isBotGame: isBotGame,
-        hostId: null,
+        hostId: localPlayerId, // Set the creator as the host
       });
       
       router.push(`/game/${gameId}`);
