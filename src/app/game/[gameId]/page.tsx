@@ -9,11 +9,12 @@ import { BoardSetup } from "@/components/board-setup";
 import { GameBoard } from "@/components/game-board";
 import { GameOverDialog } from "@/components/game-over-dialog";
 import { AppLogo } from "@/components/icons";
-import { checkWin } from "@/lib/game-logic";
+import { checkWin, countWinningLines } from "@/lib/game-logic";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { Lobby } from "@/components/lobby";
+import { AIAdvisor } from "@/components/ai-advisor";
 
 type GameStatus = "waiting" | "setup" | "playing" | "finished";
 type Player = {
@@ -81,28 +82,27 @@ export default function GamePage() {
 
   // Effect to handle player joining
   useEffect(() => {
-    if (!localPlayerId || !gameState || gameState.players[localPlayerId] || Object.keys(gameState.players).length >= 2) {
-      return;
-    }
-
     const joinGame = async () => {
-      const gameRef = doc(firestore, "games", gameId);
-      const newPlayer: Player = {
-        id: localPlayerId,
-        name: `Player ${Object.keys(gameState.players).length + 1}`,
-        board: [],
-        isBoardReady: false,
-      };
+        if (!localPlayerId || !gameState || gameState.status !== 'waiting') return;
+        
+        const playerIds = Object.keys(gameState.players);
+        if (playerIds.length < 2 && !gameState.players[localPlayerId]) {
+            const gameRef = doc(firestore, "games", gameId);
+            const newPlayer: Player = {
+                id: localPlayerId,
+                name: `Player ${playerIds.length + 1}`,
+                board: [],
+                isBoardReady: false,
+            };
 
-      await updateDoc(gameRef, {
-        [`players.${localPlayerId}`]: newPlayer,
-      });
+            await updateDoc(gameRef, {
+                [`players.${localPlayerId}`]: newPlayer,
+            });
+        }
     };
 
-    if (gameState.status === 'waiting') {
-        joinGame();
-    }
-  }, [localPlayerId, gameState, gameId]);
+    joinGame();
+  }, [localPlayerId, gameState?.status, gameId]);
 
 
   const handlePlaceNumber = (index: number, num: number) => {
@@ -154,7 +154,7 @@ export default function GamePage() {
         currentTurn: startingPlayerId
       });
     }
-  }, [gameState, gameId]);
+  }, [gameState?.status, gameState?.players, gameId]);
 
 
   const handleCallNumber = async (num: number) => {
@@ -197,16 +197,15 @@ export default function GamePage() {
   const handleResetGame = async () => {
     if (!gameState) return;
     const gameRef = doc(firestore, "games", gameId);
-    const playerIds = Object.keys(gameState.players);
     
     const freshPlayers: {[key: string]: Player} = {};
-    playerIds.forEach(id => {
+    for (const id in gameState.players) {
         freshPlayers[id] = {
             ...gameState.players[id],
             board: [],
             isBoardReady: false,
         };
-    });
+    }
 
     await updateDoc(gameRef, {
       status: "setup",
@@ -221,13 +220,13 @@ export default function GamePage() {
   
   // Effect to check for game start
   useEffect(() => {
-      if (!gameState) return;
+      if (!gameState || gameState.status !== 'waiting') return;
       const players = Object.values(gameState.players);
-      if (gameState.status === 'waiting' && players.length === 2) {
+      if (players.length === 2) {
           const gameRef = doc(firestore, 'games', gameId);
           updateDoc(gameRef, { status: 'setup' });
       }
-  }, [gameState, gameId]);
+  }, [gameState?.status, gameState?.players, gameId]);
   
   // Effect to check for a draw
   useEffect(() => {
@@ -236,7 +235,7 @@ export default function GamePage() {
     if (gameState.calledNumbers.length === 75) {
        let aWinnerWasFound = false;
        for (const player of Object.values(gameState.players)) {
-         if(player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)){
+         if(player.board && player.board.length === 25 && checkWin(player.board, gameState.calledNumbers)){
             aWinnerWasFound = true;
             break;
          }
@@ -250,7 +249,7 @@ export default function GamePage() {
          });
        }
     }
-  }, [gameState, gameId]);
+  }, [gameState?.status, gameState?.calledNumbers, gameState?.winner, gameState?.players, gameId]);
 
 
   if (isLoading || !gameState || !localPlayerId) {
@@ -306,7 +305,7 @@ export default function GamePage() {
         );
 
       case "playing":
-        if (!localPlayer || localPlayer.board.length === 0) {
+        if (!localPlayer || !localPlayer.board || localPlayer.board.length === 0) {
            return (
                 <div className="text-center">
                     <h2 className="text-2xl font-bold mb-4">Error</h2>
@@ -324,6 +323,7 @@ export default function GamePage() {
             localPlayerId={localPlayerId}
             otherPlayerName={otherPlayer?.name || 'Opponent'}
             allNumbers={ALL_NUMBERS}
+            completedLines={countWinningLines(localPlayer.board, gameState.calledNumbers)}
           />
         );
       
@@ -334,6 +334,7 @@ export default function GamePage() {
                 winnerName={gameState.winner === localPlayerId ? 'You' : (gameState.winner === 'DRAW' ? 'DRAW' : otherPlayer?.name || 'Opponent')}
                 isPlayerWinner={gameState.winner === localPlayerId}
                 onPlayAgain={handleResetGame}
+                onGoToLobby={() => router.push('/')}
             />
         );
 
@@ -343,10 +344,17 @@ export default function GamePage() {
   };
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-4 bg-background dark:bg-gray-900">
+    <main className="flex flex-col items-center min-h-screen p-4 bg-background dark:bg-gray-900">
        <div className="w-full max-w-4xl mx-auto">
-        <header className="flex items-center justify-center mb-6">
+        <header className="flex items-center justify-between mb-6 w-full">
           <AppLogo />
+           {gameState.status === 'playing' && localPlayer && localPlayer.board.length > 0 && (
+            <AIAdvisor
+              playerBoard={localPlayer.board}
+              calledNumbers={gameState.calledNumbers}
+              disabled={gameState.currentTurn !== localPlayerId}
+            />
+          )}
         </header>
         {renderContent()}
       </div>

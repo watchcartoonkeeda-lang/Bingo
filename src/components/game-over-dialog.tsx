@@ -17,9 +17,10 @@ interface GameOverDialogProps {
   winnerName: string | null;
   isPlayerWinner: boolean;
   onPlayAgain: () => void;
+  onGoToLobby: () => void;
 }
 
-export function GameOverDialog({ isOpen, winnerName, isPlayerWinner, onPlayAgain }: GameOverDialogProps) {
+export function GameOverDialog({ isOpen, winnerName, isPlayerWinner, onPlayAgain, onGoToLobby }: GameOverDialogProps) {
   const title =
     winnerName === 'DRAW'
       ? "🤝 It's a Draw! 🤝"
@@ -44,9 +45,12 @@ export function GameOverDialog({ isOpen, winnerName, isPlayerWinner, onPlayAgain
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter className="mt-4">
+        <AlertDialogFooter className="mt-4 sm:flex-col gap-2">
           <Button onClick={onPlayAgain} size="lg" className="w-full">
             Play Again
+          </Button>
+          <Button onClick={onGoToLobby} size="lg" className="w-full" variant="outline">
+            Back to Lobby
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

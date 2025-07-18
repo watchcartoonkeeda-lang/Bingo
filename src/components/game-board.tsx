@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bot, User, Loader2, PartyPopper } from "lucide-react";
-import { countWinningLines } from "@/lib/game-logic";
 
 interface GameBoardProps {
   playerBoard: (number | null)[];
@@ -18,14 +17,14 @@ interface GameBoardProps {
   localPlayerId: string;
   otherPlayerName: string;
   allNumbers: number[];
+  completedLines: number;
 }
 
-export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers }: GameBoardProps) {
+export function GameBoard({ playerBoard, calledNumbers, onCallNumber, onBingoCall, currentTurnId, localPlayerId, otherPlayerName, allNumbers, completedLines }: GameBoardProps) {
   const isPlayerTurn = currentTurnId === localPlayerId;
   
   const turnText = isPlayerTurn ? "Your turn! Pick a number to call." : `Waiting for ${otherPlayerName}...`;
 
-  const completedLines = countWinningLines(playerBoard, calledNumbers);
   const canCallBingo = completedLines >= 5;
 
   return (
