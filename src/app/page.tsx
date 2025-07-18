@@ -110,7 +110,7 @@ export default function Home() {
     setIsGameLoading(true);
     setShowNameDialog(false);
     
-    const { mode, difficulty } = gameInfoToToCreate.current;
+    const { mode, difficulty } = gameInfoToCreate.current;
     const isBotGame = mode === 'bot';
 
     try {
